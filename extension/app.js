@@ -3436,6 +3436,260 @@ function updateExploreCounts() {
 
 
 /* ----------------------------------------------------------------
+   TAB GROUPS VIEW — show Chrome tab groups as cards
+   ---------------------------------------------------------------- */
+
+// Chrome tab group color → CSS color mapping
+const GROUP_COLORS = {
+  grey:   '#5f6368',
+  blue:   '#4285f4',
+  red:    '#ea4335',
+  yellow: '#fbbc04',
+  green:  '#34a853',
+  pink:   '#e8447a',
+  purple: '#a142f4',
+  cyan:   '#24c1e0',
+  orange: '#fa903e',
+};
+
+let currentViewMode = 'domains'; // 'domains' | 'groups'
+let tabGroups = [];
+
+async function loadViewMode() {
+  try {
+    const result = await chrome.storage.local.get('tabViewMode');
+    return result.tabViewMode || 'domains';
+  } catch { return 'domains'; }
+}
+
+async function saveViewMode(mode) {
+  try { await chrome.storage.local.set({ tabViewMode: mode }); } catch {}
+}
+
+async function fetchTabGroups() {
+  try {
+    tabGroups = await chrome.tabGroups.query({});
+    return tabGroups;
+  } catch {
+    tabGroups = [];
+    return [];
+  }
+}
+
+function renderTabGroupCard(group, tabs) {
+  const count = tabs.length;
+  const color = GROUP_COLORS[group.color] || GROUP_COLORS.grey;
+  const title = group.title || 'Unnamed group';
+  const stableId = 'group-' + group.id;
+
+  const visibleTabs = tabs.slice(0, 8);
+  const extraCount = count - visibleTabs.length;
+
+  const chips = visibleTabs.map(tab => {
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
+    const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
+    const safeTitle = label.replace(/"/g, '&quot;');
+    let domain = '';
+    try { domain = new URL(tab.url).hostname; } catch {}
+    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      <span class="chip-text">${label}</span>
+      <div class="chip-actions">
+        <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="Save for later">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+        </button>
+        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const overflowHtml = extraCount > 0 ? `<div class="page-chip page-chip-overflow clickable" data-action="expand-chips"><span class="chip-text">+${extraCount} more</span></div>` : '';
+
+  return `
+    <div class="mission-card group-card" data-group-id="${stableId}" style="--group-color: ${color}">
+      <div class="status-bar" style="background: ${color}"></div>
+      <div class="mission-content">
+        <div class="mission-top">
+          <span class="mission-name">${title}</span>
+          <span class="open-tabs-badge" style="color:${color};background:${color}18;">
+            ${count} tab${count !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div class="mission-pages">${chips}${overflowHtml}</div>
+        <div class="actions">
+          <button class="action-btn close-tabs" data-action="close-group-tabs" data-group-id="${group.id}">
+            ${ICONS.close} Close group
+          </button>
+          <button class="action-btn" data-action="ungroup-tabs" data-group-id="${group.id}">
+            Ungroup
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderUngroupedSection(tabs) {
+  if (tabs.length === 0) return '';
+
+  const chips = tabs.slice(0, 8).map(tab => {
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
+    const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
+    const safeTitle = label.replace(/"/g, '&quot;');
+    let domain = '';
+    try { domain = new URL(tab.url).hostname; } catch {}
+    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      <span class="chip-text">${label}</span>
+      <div class="chip-actions">
+        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const extra = tabs.length - 8;
+  const overflow = extra > 0 ? `<div class="page-chip page-chip-overflow">+${extra} more</div>` : '';
+
+  return `
+    <div class="mission-card has-neutral-bar ungrouped-card">
+      <div class="status-bar"></div>
+      <div class="mission-content">
+        <div class="mission-top">
+          <span class="mission-name" style="color:var(--muted)">Not grouped</span>
+          <span class="open-tabs-badge">${tabs.length} tab${tabs.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="mission-pages">${chips}${overflow}</div>
+      </div>
+    </div>`;
+}
+
+async function renderGroupView() {
+  const groups = await fetchTabGroups();
+  const realTabs = getRealTabs();
+  const missionsEl = document.getElementById('openTabsMissions');
+  const countEl = document.getElementById('openTabsSectionCount');
+  if (!missionsEl) return;
+
+  // Map tabs to their groups
+  const groupedTabs = {};
+  const ungrouped = [];
+
+  for (const tab of realTabs) {
+    if (tab.groupId && tab.groupId !== -1) {
+      if (!groupedTabs[tab.groupId]) groupedTabs[tab.groupId] = [];
+      groupedTabs[tab.groupId].push(tab);
+    } else {
+      ungrouped.push(tab);
+    }
+  }
+
+  // Render group cards + ungrouped
+  let html = '';
+  for (const group of groups) {
+    const tabs = groupedTabs[group.id] || [];
+    if (tabs.length > 0) {
+      html += renderTabGroupCard(group, tabs);
+    }
+  }
+  html += renderUngroupedSection(ungrouped);
+
+  missionsEl.innerHTML = html;
+  if (countEl) {
+    countEl.innerHTML = `${groups.length} group${groups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; ${realTabs.length} tabs`;
+  }
+}
+
+// Fetch groupId for each tab (chrome.tabs.query includes it)
+const _origFetchOpenTabs = fetchOpenTabs;
+fetchOpenTabs = async function() {
+  await _origFetchOpenTabs();
+  // Enrich with groupId
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const t of tabs) {
+      const match = openTabs.find(ot => ot.id === t.id);
+      if (match) match.groupId = t.groupId;
+    }
+  } catch {}
+};
+
+// View toggle click handler
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.view-toggle-btn');
+  if (!btn) return;
+  const mode = btn.dataset.viewMode;
+  if (!mode || mode === currentViewMode) return;
+
+  currentViewMode = mode;
+  await saveViewMode(mode);
+  document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.viewMode === mode));
+
+  if (mode === 'groups') {
+    await renderGroupView();
+  } else {
+    await renderDashboard();
+  }
+});
+
+// Close group tabs
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="close-group-tabs"]');
+  if (!btn) return;
+  const groupId = parseInt(btn.dataset.groupId);
+  if (isNaN(groupId)) return;
+
+  const allTabs = await chrome.tabs.query({ groupId });
+  const ids = allTabs.map(t => t.id);
+  if (ids.length > 0) await chrome.tabs.remove(ids);
+  await fetchOpenTabs();
+  playCloseSound();
+
+  const card = btn.closest('.mission-card');
+  if (card) animateCardOut(card);
+  showToast(`Closed ${ids.length} tabs`);
+});
+
+// Ungroup tabs
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="ungroup-tabs"]');
+  if (!btn) return;
+  const groupId = parseInt(btn.dataset.groupId);
+  if (isNaN(groupId)) return;
+
+  const allTabs = await chrome.tabs.query({ groupId });
+  const ids = allTabs.map(t => t.id);
+  if (ids.length > 0) await chrome.tabs.ungroup(ids);
+  await fetchOpenTabs();
+
+  showToast('Tabs ungrouped');
+  await renderGroupView();
+});
+
+// Show/hide toggle based on whether groups exist, and restore saved view mode
+async function initViewToggle() {
+  const groups = await fetchTabGroups();
+  const toggle = document.getElementById('viewToggle');
+  if (!toggle) return;
+
+  if (groups.length > 0) {
+    toggle.style.display = '';
+    currentViewMode = await loadViewMode();
+    document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.viewMode === currentViewMode));
+    if (currentViewMode === 'groups') {
+      await renderGroupView();
+    }
+  } else {
+    toggle.style.display = 'none';
+  }
+}
+
+
+/* ----------------------------------------------------------------
    TAB SEARCH — filter open tab cards by query
    ---------------------------------------------------------------- */
 
@@ -3550,6 +3804,7 @@ chrome.tabs.onActivated.addListener(scheduleRefresh);
 // Init privacy mode first to avoid content flash, then render
 initPrivacyMode().then(async () => {
   await renderDashboard();
+  await initViewToggle();
   await renderBookmarksSection();
   initBookmarkAi();
   await renderHistorySection('today');

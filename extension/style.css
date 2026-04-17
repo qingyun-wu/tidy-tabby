@@ -216,6 +216,46 @@ header {
   white-space: nowrap;
 }
 
+/* ---- View toggle (Domains / Groups) ---- */
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--warm-gray);
+  border-radius: 6px;
+  padding: 2px;
+  margin-left: 8px;
+}
+
+.view-toggle-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-toggle-btn:hover { color: var(--ink); }
+
+.view-toggle-btn.active {
+  background: var(--card-bg);
+  color: var(--ink);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+/* ---- Group card color bar ---- */
+.group-card::before {
+  background: var(--group-color, var(--warm-gray)) !important;
+}
+
+.ungrouped-card {
+  opacity: 0.75;
+}
+
 /* ---- Tab search pill ---- */
 .tab-search-pill {
   display: flex;
