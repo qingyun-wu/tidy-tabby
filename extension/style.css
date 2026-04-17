@@ -1215,6 +1215,8 @@ body.privacy-mode .container {
 body.privacy-mode header {
   border-bottom: none;
   margin-bottom: 0;
+  position: relative;
+  z-index: 51;
 }
 
 body.privacy-mode .header-left {
