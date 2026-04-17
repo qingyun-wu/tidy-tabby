@@ -45,9 +45,10 @@ async function fetchOpenTabs() {
       title:       t.title,
       windowId:    t.windowId,
       active:      t.active,
+      pinned:      t.pinned,
       groupId:     t.groupId,
+      favIconUrl:  t.favIconUrl,
       lastAccessed: t.lastAccessed,
-      // Flag Tidy Tabby's own pages so we can detect duplicate new tabs
       isTabOut: t.url === newtabUrl || t.url === 'chrome://newtab/',
     }));
   } catch {
@@ -590,6 +591,24 @@ const FRIENDLY_DOMAINS = {
   'local-files':          'Local Files',
 };
 
+/**
+ * getFaviconUrl(tab or url)
+ *
+ * Returns the best favicon URL. Prefers Chrome's native favIconUrl,
+ * falls back to Google's favicon service.
+ */
+function getFaviconUrl(tabOrUrl) {
+  // If it's a tab object with favIconUrl, use that
+  if (tabOrUrl && typeof tabOrUrl === 'object' && tabOrUrl.favIconUrl) {
+    return tabOrUrl.favIconUrl;
+  }
+  // Otherwise derive from URL/domain string
+  const url = typeof tabOrUrl === 'string' ? tabOrUrl : (tabOrUrl?.url || '');
+  let domain = '';
+  try { domain = new URL(url).hostname; } catch {}
+  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+}
+
 function friendlyDomain(hostname) {
   if (!hostname) return '';
   if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname];
@@ -725,6 +744,7 @@ function getRealTabs() {
   return openTabs.filter(t => {
     const url = t.url || '';
     return (
+      !t.pinned &&
       !url.startsWith('chrome://') &&
       !url.startsWith('chrome-extension://') &&
       !url.startsWith('about:') &&
@@ -767,9 +787,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
     const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = getFaviconUrl(tab);
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
       <span class="chip-text">${label}</span>${dupeTag}
@@ -848,9 +866,7 @@ function renderDomainCard(group) {
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
     const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = getFaviconUrl(tab);
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
       <span class="chip-text">${label}</span>${dupeTag}
@@ -3515,9 +3531,7 @@ function renderTabGroupCard(group, tabs) {
     const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = getFaviconUrl(tab);
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
       <span class="chip-text">${label}</span>
@@ -3564,9 +3578,7 @@ function renderUngroupedSection(tabs) {
     const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = getFaviconUrl(tab);
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
       <span class="chip-text">${label}</span>
