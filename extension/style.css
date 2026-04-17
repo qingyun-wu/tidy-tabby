@@ -216,6 +216,47 @@ header {
   white-space: nowrap;
 }
 
+/* ---- Tab search pill ---- */
+.tab-search-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 16px;
+  background: var(--card-bg);
+  color: var(--muted);
+  transition: border-color 0.2s;
+}
+
+.tab-search-pill:focus-within {
+  border-color: var(--accent-amber);
+}
+
+.tab-search-input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  outline: none;
+  width: 120px;
+}
+
+.tab-search-input::placeholder {
+  color: var(--muted);
+}
+
+.tab-search-hint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--warm-gray);
+  border-radius: 3px;
+  padding: 1px 5px;
+  opacity: 0.6;
+}
+
 /* ---- Mission Cards ---- */
 .missions {
   columns: 280px;

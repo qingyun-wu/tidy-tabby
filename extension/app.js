@@ -3436,6 +3436,89 @@ function updateExploreCounts() {
 
 
 /* ----------------------------------------------------------------
+   TAB SEARCH — filter open tab cards by query
+   ---------------------------------------------------------------- */
+
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'tabSearchInput') return;
+  const q = e.target.value.trim().toLowerCase();
+  const cards = document.querySelectorAll('#openTabsMissions .mission-card');
+
+  if (q.length < 1) {
+    // Show all cards and chips
+    cards.forEach(c => { c.style.display = ''; });
+    cards.forEach(c => c.querySelectorAll('.page-chip').forEach(ch => ch.style.display = ''));
+    return;
+  }
+
+  cards.forEach(card => {
+    const name = (card.querySelector('.mission-name')?.textContent || '').toLowerCase();
+    let hasMatch = name.includes(q);
+
+    // Filter individual chips within the card
+    card.querySelectorAll('.page-chip[data-tab-url]').forEach(chip => {
+      const title = (chip.querySelector('.chip-text')?.textContent || '').toLowerCase();
+      const url = (chip.dataset.tabUrl || '').toLowerCase();
+      const match = title.includes(q) || url.includes(q);
+      chip.style.display = match ? '' : 'none';
+      if (match) hasMatch = true;
+    });
+
+    card.style.display = hasMatch ? '' : 'none';
+  });
+});
+
+// "/" shortcut to focus search
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+    const active = document.activeElement;
+    const tag = active?.tagName;
+    // Don't intercept if user is typing in an input/textarea
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    // Only if Open Tabs panel is visible
+    const panel = document.getElementById('explorePanelTabs');
+    if (panel && panel.style.display !== 'none') {
+      e.preventDefault();
+      const input = document.getElementById('tabSearchInput');
+      if (input) {
+        input.focus();
+        // Hide the "/" hint
+        const hint = document.getElementById('tabSearchHint');
+        if (hint) hint.style.display = 'none';
+      }
+    }
+  }
+});
+
+// Show/hide "/" hint based on focus
+document.getElementById('tabSearchInput')?.addEventListener('focus', () => {
+  const hint = document.getElementById('tabSearchHint');
+  if (hint) hint.style.display = 'none';
+});
+
+document.getElementById('tabSearchInput')?.addEventListener('blur', () => {
+  const hint = document.getElementById('tabSearchHint');
+  const input = document.getElementById('tabSearchInput');
+  if (hint && input && !input.value) hint.style.display = '';
+});
+
+// Escape clears search
+document.getElementById('tabSearchInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation(); // Don't trigger privacy mode
+    const input = document.getElementById('tabSearchInput');
+    if (input && input.value) {
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+    } else {
+      input?.blur();
+    }
+  }
+});
+
+
+/* ----------------------------------------------------------------
    AUTO-REFRESH — re-render when tabs change
    ---------------------------------------------------------------- */
 
