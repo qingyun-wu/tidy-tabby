@@ -318,14 +318,11 @@
             <span class="terminal-status-dot disconnected"></span>
             Disconnected
           </div>
-          <div class="terminal-toolbar-right">
-            <input type="text" class="terminal-url-input" id="terminalUrl" value="ws://localhost:8765" title="WebSocket server URL">
-            <button class="terminal-connect-btn" id="terminalConnectBtn">Connect</button>
-          </div>
+          <button class="terminal-connect-btn" id="terminalConnectBtn">Connect</button>
         </div>
         <div class="terminal-container" id="terminalContainer"></div>
         <div class="terminal-hint" id="terminalHint">
-          Run the relay server to connect: <code>python3 extension/terminal-server.py</code>
+          First time? Run <code>./install-terminal.sh</code> in the repo to set up native messaging.
         </div>
       </div>
     </div>

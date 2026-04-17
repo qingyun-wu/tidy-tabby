@@ -3359,11 +3359,11 @@ document.getElementById('chatInputForm')?.addEventListener('submit', async (e) =
 
 
 /* ----------------------------------------------------------------
-   TERMINAL — xterm.js + WebSocket to local shell
+   TERMINAL — xterm.js + Chrome Native Messaging
    ---------------------------------------------------------------- */
 
 let term = null;
-let termSocket = null;
+let termPort = null;
 let termInitialized = false;
 
 function initTerminal() {
@@ -3407,7 +3407,6 @@ function initTerminal() {
     term.open(container);
     fitAddon.fit();
     window.addEventListener('resize', () => fitAddon.fit());
-    // Re-fit when terminal tab becomes visible
     const observer = new MutationObserver(() => {
       const panel = document.getElementById('explorePanelTerminal');
       if (panel && panel.style.display !== 'none') {
@@ -3421,68 +3420,57 @@ function initTerminal() {
   }
 
   term.writeln('\x1b[1;33mTidy Tabby Terminal\x1b[0m');
-  term.writeln('Connect to a local WebSocket server to start.');
+  term.writeln('Click Connect to open a shell session.');
   term.writeln('');
 
-  // Send keystrokes to WebSocket
+  // Send keystrokes to native host via background
   term.onData(data => {
-    if (termSocket && termSocket.readyState === WebSocket.OPEN) {
-      termSocket.send(data);
+    if (termPort) {
+      termPort.postMessage({ type: 'input', data });
     }
   });
 }
 
 function connectTerminal() {
-  const urlInput = document.getElementById('terminalUrl');
   const statusEl = document.getElementById('terminalStatus');
   const hintEl = document.getElementById('terminalHint');
-  const url = urlInput?.value.trim() || 'ws://localhost:8765';
 
-  if (termSocket) {
-    termSocket.close();
-    termSocket = null;
-  }
-
-  try {
-    termSocket = new WebSocket(url);
-  } catch {
-    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Failed to connect';
-    return;
+  if (termPort) {
+    termPort.disconnect();
+    termPort = null;
   }
 
   if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot connecting"></span> Connecting...';
 
-  termSocket.onopen = () => {
-    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot connected"></span> Connected';
-    if (hintEl) hintEl.style.display = 'none';
-    if (term) {
-      term.clear();
-      term.focus();
+  termPort = chrome.runtime.connect({ name: 'terminal' });
+
+  termPort.onMessage.addListener((msg) => {
+    if (msg.type === 'connected') {
+      if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot connected"></span> Connected';
+      if (hintEl) hintEl.style.display = 'none';
+      if (term) { term.clear(); term.focus(); }
+    } else if (msg.type === 'output') {
+      if (term) term.write(msg.data);
+    } else if (msg.type === 'disconnected' || msg.type === 'error') {
+      if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Disconnected';
+      if (hintEl) {
+        hintEl.style.display = '';
+        if (msg.data) hintEl.innerHTML = `<span style="color:var(--status-abandoned)">${msg.data}</span><br>Run: <code>./install-terminal.sh</code> to set up native messaging.`;
+      }
+      if (term) term.writeln('\r\n\x1b[90m[' + (msg.data || 'Disconnected') + ']\x1b[0m');
+      termPort = null;
     }
-  };
+  });
 
-  termSocket.onmessage = (event) => {
-    if (term) term.write(event.data);
-  };
-
-  termSocket.onclose = () => {
+  termPort.onDisconnect.addListener(() => {
     if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Disconnected';
-    if (term) term.writeln('\r\n\x1b[90m[Connection closed]\x1b[0m');
-  };
-
-  termSocket.onerror = () => {
-    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Connection failed';
-    if (hintEl) hintEl.style.display = '';
-  };
+    termPort = null;
+  });
 }
 
 document.getElementById('terminalConnectBtn')?.addEventListener('click', () => {
   if (!termInitialized) initTerminal();
   connectTerminal();
-});
-
-document.getElementById('terminalUrl')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('terminalConnectBtn')?.click(); }
 });
 
 

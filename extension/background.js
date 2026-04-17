@@ -87,6 +87,59 @@ chrome.tabs.onUpdated.addListener(() => {
   updateBadge();
 });
 
+// ─── Native Messaging Terminal Relay ─────────────────────────────────────────
+
+const NATIVE_HOST = 'com.tidytabby.terminal';
+let nativePort = null;
+let terminalClientPort = null;
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'terminal') return;
+
+  terminalClientPort = port;
+
+  // Connect to native host
+  try {
+    nativePort = chrome.runtime.connectNative(NATIVE_HOST);
+  } catch (err) {
+    port.postMessage({ type: 'error', data: 'Failed to connect to native host. Run install.sh first.' });
+    return;
+  }
+
+  // Relay native host output → extension page
+  nativePort.onMessage.addListener((msg) => {
+    if (terminalClientPort) {
+      terminalClientPort.postMessage(msg);
+    }
+  });
+
+  nativePort.onDisconnect.addListener(() => {
+    const error = chrome.runtime.lastError?.message || 'Native host disconnected';
+    if (terminalClientPort) {
+      terminalClientPort.postMessage({ type: 'disconnected', data: error });
+    }
+    nativePort = null;
+  });
+
+  // Relay extension page input → native host
+  port.onMessage.addListener((msg) => {
+    if (nativePort) {
+      nativePort.postMessage(msg);
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (nativePort) {
+      nativePort.disconnect();
+      nativePort = null;
+    }
+    terminalClientPort = null;
+  });
+
+  // Signal ready
+  port.postMessage({ type: 'connected' });
+});
+
 // ─── Initial run ─────────────────────────────────────────────────────────────
 
 // Run once immediately when the service worker first loads

@@ -2002,28 +2002,6 @@ body.privacy-mode .privacy-screen {
 .terminal-status-dot.connecting { background: var(--status-cooling); }
 .terminal-status-dot.connected { background: var(--status-active); }
 
-.terminal-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.terminal-url-input {
-  font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
-  font-size: 11px;
-  padding: 6px 10px;
-  border: 1px solid var(--warm-gray);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  outline: none;
-  width: 200px;
-}
-
-.terminal-url-input:focus {
-  border-color: var(--accent-amber);
-}
-
 .terminal-connect-btn {
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
