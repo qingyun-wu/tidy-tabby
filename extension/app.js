@@ -2529,10 +2529,165 @@ function renderHistoryTimeline(analysis) {
   }).join('');
 }
 
-let currentHistoryRange = 'today';
-let currentHistoryAnalysis = null;
+/**
+ * groupIntoSessions(items, gapMinutes)
+ *
+ * Groups history items into browsing sessions. A new session starts
+ * when there's a gap of >= gapMinutes between consecutive visits.
+ */
+function groupIntoSessions(items, gapMinutes = 30) {
+  if (items.length === 0) return [];
 
-async function renderHistorySection(range = 'today') {
+  // Sort by lastVisitTime descending (most recent first)
+  const sorted = [...items]
+    .filter(i => i.lastVisitTime)
+    .sort((a, b) => b.lastVisitTime - a.lastVisitTime);
+
+  if (sorted.length === 0) return [];
+
+  const gapMs = gapMinutes * 60 * 1000;
+  const sessions = [];
+  let currentSession = { items: [sorted[0]], start: sorted[0].lastVisitTime, end: sorted[0].lastVisitTime };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const item = sorted[i];
+    const gap = currentSession.items[currentSession.items.length - 1].lastVisitTime - item.lastVisitTime;
+
+    if (gap > gapMs) {
+      // Finalize current session
+      currentSession.start = currentSession.items[currentSession.items.length - 1].lastVisitTime;
+      sessions.push(currentSession);
+      currentSession = { items: [item], start: item.lastVisitTime, end: item.lastVisitTime };
+    } else {
+      currentSession.items.push(item);
+    }
+  }
+  // Push last session
+  currentSession.start = currentSession.items[currentSession.items.length - 1].lastVisitTime;
+  sessions.push(currentSession);
+
+  return sessions;
+}
+
+function formatTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function sessionDuration(session) {
+  const ms = session.end - session.start;
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return '< 1 min';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remainder = mins % 60;
+  return remainder > 0 ? `${hrs}h ${remainder}m` : `${hrs}h`;
+}
+
+/**
+ * renderSessionView(items)
+ *
+ * Renders history grouped by browsing sessions as a vertical timeline.
+ */
+function renderSessionView(items) {
+  const sessions = groupIntoSessions(items);
+  if (sessions.length === 0) return '<div class="history-empty">No sessions found.</div>';
+
+  let lastDate = '';
+
+  return sessions.map(session => {
+    const dateLabel = formatDate(session.end);
+    let dateHeader = '';
+    if (dateLabel !== lastDate) {
+      lastDate = dateLabel;
+      dateHeader = `<div class="session-date-header">${dateLabel}</div>`;
+    }
+
+    const timeRange = `${formatTime(session.start)} — ${formatTime(session.end)}`;
+    const duration = sessionDuration(session);
+
+    // Group session items by domain
+    const domainMap = {};
+    for (const item of session.items) {
+      let hostname = '';
+      try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch { continue; }
+      if (!domainMap[hostname]) domainMap[hostname] = [];
+      domainMap[hostname].push(item);
+    }
+
+    // Deduplicate within each domain
+    const domainGroups = Object.entries(domainMap)
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([domain, pages]) => {
+        const seen = new Set();
+        const unique = [];
+        for (const p of pages) {
+          if (!seen.has(p.url)) { seen.add(p.url); unique.push(p); }
+        }
+        return { domain, pages: unique };
+      });
+
+    const totalPages = domainGroups.reduce((s, g) => s + g.pages.length, 0);
+
+    const domainChips = domainGroups.slice(0, 6).map(g => {
+      const chips = g.pages.slice(0, 3).map(p => {
+        const label = stripTitleNoise(cleanTitle(p.title || '', g.domain));
+        const safeUrl = (p.url || '').replace(/"/g, '&quot;');
+        let dom = '';
+        try { dom = new URL(p.url).hostname; } catch {}
+        const faviconUrl = dom ? `https://www.google.com/s2/favicons?domain=${dom}&sz=16` : '';
+        return `<div class="page-chip clickable" data-action="open-history-link" data-tab-url="${safeUrl}" title="${label}">
+          ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+          <span class="chip-text">${label}</span>
+        </div>`;
+      }).join('');
+
+      const moreCount = g.pages.length - 3;
+      const moreHtml = moreCount > 0 ? `<div class="page-chip page-chip-overflow">+${moreCount} more</div>` : '';
+
+      return `<div class="session-domain-group">
+        <div class="session-domain-name">${friendlyDomain(g.domain)} <span class="session-domain-count">${g.pages.length}</span></div>
+        <div class="mission-pages">${chips}${moreHtml}</div>
+      </div>`;
+    }).join('');
+
+    const moreDomainsCount = domainGroups.length - 6;
+    const moreDomains = moreDomainsCount > 0 ? `<div class="session-more-domains">+${moreDomainsCount} more site${moreDomainsCount > 1 ? 's' : ''}</div>` : '';
+
+    return `${dateHeader}
+    <div class="session-card">
+      <div class="session-dot-line">
+        <div class="session-dot"></div>
+        <div class="session-line-v"></div>
+      </div>
+      <div class="session-body">
+        <div class="session-header">
+          <span class="session-time">${timeRange}</span>
+          <span class="session-duration">${duration}</span>
+          <span class="session-page-count">${totalPages} page${totalPages !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="session-domains">${domainChips}${moreDomains}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let currentHistoryRange = 'today';
+let currentHistoryView = 'domain';
+let currentHistoryAnalysis = null;
+let currentHistoryItems = null;
+
+async function renderHistorySection(range = 'today', view = currentHistoryView) {
   const section = document.getElementById('historySection');
   const countEl = document.getElementById('historyCount');
   const statsEl = document.getElementById('historyStats');
@@ -2540,9 +2695,15 @@ async function renderHistorySection(range = 'today') {
   if (!section) return;
 
   currentHistoryRange = range;
+  currentHistoryView = view;
   section.style.display = '';
 
-  const items = await fetchHistory(range);
+  // Only re-fetch if range changed
+  if (!currentHistoryItems || range !== currentHistoryRange || !currentHistoryAnalysis) {
+    currentHistoryItems = await fetchHistory(range);
+  }
+
+  const items = currentHistoryItems;
   if (items.length === 0) {
     if (countEl) countEl.textContent = '';
     if (statsEl) statsEl.innerHTML = '';
@@ -2554,9 +2715,22 @@ async function renderHistorySection(range = 'today') {
   currentHistoryAnalysis = analysis;
 
   const rangeLabels = { today: 'today', week: 'this week', month: 'this month' };
-  if (countEl) countEl.textContent = `${analysis.totalItems} pages ${rangeLabels[range]}`;
+  const sessions = groupIntoSessions(items);
+  const sessionLabel = sessions.length > 0 ? ` · ${sessions.length} session${sessions.length !== 1 ? 's' : ''}` : '';
+  if (countEl) countEl.textContent = `${analysis.totalItems} pages ${rangeLabels[range]}${sessionLabel}`;
   if (statsEl) statsEl.innerHTML = renderHistoryStats(analysis);
-  if (timelineEl) timelineEl.innerHTML = renderHistoryTimeline(analysis);
+
+  if (view === 'session') {
+    if (timelineEl) {
+      timelineEl.className = 'history-timeline session-view';
+      timelineEl.innerHTML = renderSessionView(items);
+    }
+  } else {
+    if (timelineEl) {
+      timelineEl.className = 'history-timeline';
+      timelineEl.innerHTML = renderHistoryTimeline(analysis);
+    }
+  }
 }
 
 // Range tab clicks
@@ -2568,7 +2742,20 @@ document.addEventListener('click', (e) => {
 
   document.querySelectorAll('.history-range-tab').forEach(t => t.classList.remove('active'));
   tab.classList.add('active');
-  renderHistorySection(range);
+  currentHistoryItems = null; // force re-fetch
+  renderHistorySection(range, currentHistoryView);
+});
+
+// View toggle clicks (by site / by session)
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest('.history-view-tab');
+  if (!tab) return;
+  const view = tab.dataset.view;
+  if (!view) return;
+
+  document.querySelectorAll('.history-view-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  renderHistorySection(currentHistoryRange, view);
 });
 
 // Open history link

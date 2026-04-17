@@ -1780,6 +1780,45 @@ body.privacy-mode .privacy-screen {
   box-shadow: 0 1px 3px var(--shadow);
 }
 
+.history-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.history-view-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.history-view-tab {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.history-view-tab:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.history-view-tab.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
 .history-ai-btn {
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
@@ -1888,6 +1927,133 @@ body.privacy-mode .privacy-screen {
   padding: 24px 0;
   text-align: center;
   column-span: all;
+}
+
+/* ---- Session view ---- */
+.history-timeline.session-view {
+  columns: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.session-date-header {
+  font-family: 'Newsreader', serif;
+  font-size: 15px;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--ink);
+  padding: 16px 0 8px 28px;
+  border-bottom: 1px solid var(--warm-gray);
+  margin-bottom: 8px;
+}
+
+.session-date-header:first-child {
+  padding-top: 0;
+}
+
+.session-card {
+  display: flex;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.session-dot-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+
+.session-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  border: 2px solid var(--paper);
+  box-shadow: 0 0 0 2px var(--warm-gray);
+  flex-shrink: 0;
+}
+
+.session-line-v {
+  width: 2px;
+  flex: 1;
+  background: var(--warm-gray);
+  margin-top: 4px;
+}
+
+.session-card:last-child .session-line-v,
+.session-card:last-of-type .session-line-v {
+  background: linear-gradient(to bottom, var(--warm-gray), transparent);
+}
+
+.session-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 12px;
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.session-time {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.session-duration {
+  font-size: 11px;
+  color: var(--accent-amber);
+  background: rgba(200, 113, 58, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.session-page-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.session-domains {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.session-domain-group {
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.session-domain-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.session-domain-count {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.session-more-domains {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0;
 }
 
 /* Hide in privacy mode */
