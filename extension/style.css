@@ -1383,3 +1383,112 @@ body.privacy-mode .privacy-screen {
 .privacy-setting-input:focus {
   border-color: var(--accent-amber);
 }
+
+/* ================================================================
+   BOOKMARKS SECTION
+   ================================================================ */
+
+.bookmarks-section {
+  margin-top: 48px;
+  animation: fadeUp 0.5s ease 0.3s both;
+}
+
+.bookmarks-section .section-header {
+  margin-bottom: 16px;
+}
+
+/* ---- Suggestions banner ---- */
+.bookmark-suggestions {
+  background: linear-gradient(135deg, rgba(90, 107, 122, 0.04), rgba(90, 107, 122, 0.09));
+  border: 1px solid rgba(90, 107, 122, 0.18);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.bookmark-suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-slate);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.bookmark-suggestion-item {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.5;
+  padding: 3px 0;
+}
+
+/* ---- Search ---- */
+.bookmark-search-row {
+  margin-bottom: 16px;
+}
+
+.bookmark-search {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 16px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 20px;
+  background: var(--card-bg);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.bookmark-search:focus {
+  border-color: var(--accent-amber);
+}
+
+.bookmark-search::placeholder {
+  color: var(--muted);
+}
+
+/* ---- Folder cards grid ---- */
+.bookmark-folders {
+  columns: 280px;
+  column-gap: 12px;
+}
+
+.bookmark-card {
+  cursor: default;
+}
+
+.bookmark-card .page-chip {
+  cursor: pointer;
+}
+
+.bookmark-folder-path {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.bookmark-open-indicator {
+  color: var(--accent-sage);
+  font-size: 8px;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+.bookmark-empty {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 24px 0;
+  text-align: center;
+  column-span: all;
+}
+
+/* Hide bookmarks in privacy mode */
+body.privacy-mode .bookmarks-section {
+  display: none !important;
+}

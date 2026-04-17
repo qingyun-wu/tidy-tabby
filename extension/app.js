@@ -1656,7 +1656,310 @@ async function initPrivacyMode() {
 
 
 /* ----------------------------------------------------------------
+   BOOKMARKS — read Chrome bookmarks and display organized view
+   ---------------------------------------------------------------- */
+
+// ---- Fetch all bookmarks from Chrome ----
+
+async function fetchBookmarks() {
+  try {
+    const tree = await chrome.bookmarks.getTree();
+    return tree;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * flattenBookmarks(nodes, path)
+ *
+ * Recursively walks the bookmark tree and returns a flat array of
+ * { title, url, folder, folderPath, dateAdded }.
+ */
+function flattenBookmarks(nodes, path = []) {
+  const results = [];
+  for (const node of nodes) {
+    if (node.url) {
+      results.push({
+        id: node.id,
+        title: node.title || node.url,
+        url: node.url,
+        folder: path.length > 0 ? path[path.length - 1] : 'Other',
+        folderPath: path.join(' / ') || 'Other',
+        dateAdded: node.dateAdded || 0,
+      });
+    }
+    if (node.children) {
+      const folderName = node.title || '';
+      const newPath = folderName ? [...path, folderName] : path;
+      results.push(...flattenBookmarks(node.children, newPath));
+    }
+  }
+  return results;
+}
+
+/**
+ * groupBookmarksByFolder(bookmarks)
+ *
+ * Groups flat bookmarks by their immediate folder name.
+ * Returns sorted array of { folder, folderPath, bookmarks: [] }.
+ */
+function groupBookmarksByFolder(bookmarks) {
+  const map = {};
+  for (const bm of bookmarks) {
+    const key = bm.folderPath || 'Other';
+    if (!map[key]) map[key] = { folder: bm.folder, folderPath: key, bookmarks: [] };
+    map[key].bookmarks.push(bm);
+  }
+  return Object.values(map).sort((a, b) => b.bookmarks.length - a.bookmarks.length);
+}
+
+/**
+ * generateBookmarkSuggestions(bookmarks)
+ *
+ * Analyzes bookmarks and generates useful insights:
+ * - Potential duplicates
+ * - Stale bookmarks (old, maybe outdated)
+ * - Already-open bookmarks
+ * - Domain stats
+ */
+function generateBookmarkSuggestions(bookmarks) {
+  const suggestions = [];
+
+  // Find duplicates (same URL)
+  const urlCounts = {};
+  for (const bm of bookmarks) {
+    const normalized = bm.url.replace(/\/$/, '').replace(/^https?:\/\/(www\.)?/, '');
+    urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
+  }
+  const dupeCount = Object.values(urlCounts).filter(c => c > 1).length;
+  if (dupeCount > 0) {
+    suggestions.push({
+      type: 'warning',
+      text: `${dupeCount} duplicate bookmark${dupeCount > 1 ? 's' : ''} found — same URL saved in multiple folders.`,
+    });
+  }
+
+  // Find bookmarks that are already open as tabs
+  const openUrls = new Set(openTabs.map(t => t.url));
+  const alreadyOpen = bookmarks.filter(bm => openUrls.has(bm.url));
+  if (alreadyOpen.length > 0) {
+    suggestions.push({
+      type: 'info',
+      text: `${alreadyOpen.length} bookmark${alreadyOpen.length > 1 ? 's are' : ' is'} already open as tab${alreadyOpen.length > 1 ? 's' : ''}.`,
+    });
+  }
+
+  // Domain breakdown — top 3 domains
+  const domainCounts = {};
+  for (const bm of bookmarks) {
+    try {
+      const hostname = new URL(bm.url).hostname.replace(/^www\./, '');
+      domainCounts[hostname] = (domainCounts[hostname] || 0) + 1;
+    } catch {}
+  }
+  const topDomains = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  if (topDomains.length > 0) {
+    const parts = topDomains.map(([d, c]) => `${friendlyDomain(d)} (${c})`);
+    suggestions.push({
+      type: 'stat',
+      text: `Top sites: ${parts.join(', ')}.`,
+    });
+  }
+
+  // Old bookmarks (> 1 year)
+  const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const oldCount = bookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo).length;
+  if (oldCount > 10) {
+    suggestions.push({
+      type: 'cleanup',
+      text: `${oldCount} bookmarks are over a year old — might be worth reviewing.`,
+    });
+  }
+
+  return suggestions;
+}
+
+/**
+ * renderBookmarkCard(group)
+ *
+ * Renders one folder group card, similar to domain cards for open tabs.
+ */
+function renderBookmarkCard(group) {
+  const count = group.bookmarks.length;
+  const stableId = 'bm-folder-' + group.folderPath.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+
+  const visibleBookmarks = group.bookmarks.slice(0, 6);
+  const extraCount = count - visibleBookmarks.length;
+
+  const chips = visibleBookmarks.map(bm => {
+    const label = stripTitleNoise(bm.title || '');
+    let domain = '';
+    try { domain = new URL(bm.url).hostname; } catch {}
+    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
+    const safeTitle = label.replace(/"/g, '&quot;');
+    const isOpen = openTabs.some(t => t.url === bm.url);
+    const openIndicator = isOpen ? ' <span class="bookmark-open-indicator" title="Already open">●</span>' : '';
+
+    return `<div class="page-chip clickable" data-action="open-bookmark" data-tab-url="${safeUrl}" title="${safeTitle}">
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      <span class="chip-text">${label}${openIndicator}</span>
+    </div>`;
+  }).join('');
+
+  const overflowHtml = extraCount > 0 ? renderBookmarkOverflow(group.bookmarks.slice(6)) : '';
+
+  return `
+    <div class="mission-card bookmark-card has-neutral-bar" data-folder-id="${stableId}">
+      <div class="status-bar"></div>
+      <div class="mission-content">
+        <div class="mission-top">
+          <span class="mission-name">${group.folder}</span>
+          <span class="open-tabs-badge" style="color:var(--accent-slate);background:rgba(90,107,122,0.08);">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="10" height="10"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+            ${count} bookmark${count !== 1 ? 's' : ''}
+          </span>
+        </div>
+        ${group.folderPath !== group.folder ? `<div class="bookmark-folder-path">${group.folderPath}</div>` : ''}
+        <div class="mission-pages">${chips}${overflowHtml}</div>
+      </div>
+    </div>`;
+}
+
+function renderBookmarkOverflow(hiddenBookmarks) {
+  const hiddenChips = hiddenBookmarks.map(bm => {
+    const label = stripTitleNoise(bm.title || '');
+    let domain = '';
+    try { domain = new URL(bm.url).hostname; } catch {}
+    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
+    const safeTitle = label.replace(/"/g, '&quot;');
+    const isOpen = openTabs.some(t => t.url === bm.url);
+    const openIndicator = isOpen ? ' <span class="bookmark-open-indicator" title="Already open">●</span>' : '';
+
+    return `<div class="page-chip clickable" data-action="open-bookmark" data-tab-url="${safeUrl}" title="${safeTitle}">
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      <span class="chip-text">${label}${openIndicator}</span>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="page-chips-overflow" style="display:none">${hiddenChips}</div>
+    <div class="page-chip page-chip-overflow clickable" data-action="expand-chips">
+      <span class="chip-text">+${hiddenBookmarks.length} more</span>
+    </div>`;
+}
+
+/**
+ * renderBookmarksSection()
+ *
+ * Main entry point: fetches bookmarks, groups them, generates
+ * suggestions, and renders everything.
+ */
+async function renderBookmarksSection() {
+  const section = document.getElementById('bookmarksSection');
+  if (!section) return;
+
+  const tree = await fetchBookmarks();
+  const allBookmarks = flattenBookmarks(tree);
+
+  if (allBookmarks.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+
+  // Count
+  const countEl = document.getElementById('bookmarksCount');
+  const groups = groupBookmarksByFolder(allBookmarks);
+  if (countEl) {
+    countEl.textContent = `${allBookmarks.length} bookmarks · ${groups.length} folders`;
+  }
+
+  // Suggestions
+  const suggestions = generateBookmarkSuggestions(allBookmarks);
+  const suggestionsEl = document.getElementById('bookmarkSuggestions');
+  const suggestionsBody = document.getElementById('bookmarkSuggestionsBody');
+  if (suggestions.length > 0 && suggestionsEl && suggestionsBody) {
+    suggestionsBody.innerHTML = suggestions.map(s => {
+      const icon = s.type === 'warning' ? '⚠' : s.type === 'info' ? '↗' : s.type === 'cleanup' ? '🧹' : '📊';
+      return `<div class="bookmark-suggestion-item">${icon} ${s.text}</div>`;
+    }).join('');
+    suggestionsEl.style.display = '';
+  }
+
+  // Render folder cards
+  const foldersEl = document.getElementById('bookmarkFolders');
+  if (foldersEl) {
+    foldersEl.innerHTML = groups.map(g => renderBookmarkCard(g)).join('');
+  }
+
+  // Store for search
+  section._allBookmarks = allBookmarks;
+  section._groups = groups;
+}
+
+// ---- Bookmark search ----
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'bookmarkSearch') return;
+
+  const q = e.target.value.trim().toLowerCase();
+  const section = document.getElementById('bookmarksSection');
+  const foldersEl = document.getElementById('bookmarkFolders');
+  if (!section || !foldersEl) return;
+
+  const allBookmarks = section._allBookmarks || [];
+  if (q.length < 2) {
+    // Show all groups
+    const groups = section._groups || [];
+    foldersEl.innerHTML = groups.map(g => renderBookmarkCard(g)).join('');
+    return;
+  }
+
+  // Filter bookmarks matching query
+  const filtered = allBookmarks.filter(bm =>
+    (bm.title || '').toLowerCase().includes(q) ||
+    (bm.url || '').toLowerCase().includes(q) ||
+    (bm.folder || '').toLowerCase().includes(q)
+  );
+
+  if (filtered.length === 0) {
+    foldersEl.innerHTML = '<div class="bookmark-empty">No bookmarks match your search.</div>';
+    return;
+  }
+
+  const groups = groupBookmarksByFolder(filtered);
+  foldersEl.innerHTML = groups.map(g => renderBookmarkCard(g)).join('');
+});
+
+// ---- Handle bookmark click (open in new tab or focus existing) ----
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-action="open-bookmark"]');
+  if (!el) return;
+
+  const url = el.dataset.tabUrl;
+  if (!url) return;
+
+  // If already open, focus it
+  const existing = openTabs.find(t => t.url === url);
+  if (existing) {
+    await focusTab(url);
+  } else {
+    await chrome.tabs.create({ url, active: false });
+    showToast('Opened bookmark');
+  }
+});
+
+
+/* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
 // Init privacy mode first to avoid content flash, then render
-initPrivacyMode().then(() => renderDashboard());
+initPrivacyMode().then(() => {
+  renderDashboard();
+  renderBookmarksSection();
+});
