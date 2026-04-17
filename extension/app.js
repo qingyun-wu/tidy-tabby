@@ -3200,7 +3200,166 @@ document.getElementById('insightsRefreshBtn')?.addEventListener('click', async (
 
 
 /* ----------------------------------------------------------------
-   EXPLORE TABS — switch between Recent Activity and Bookmarks
+   AI CHAT — Claude-powered chat with tab + history context
+   ---------------------------------------------------------------- */
+
+let chatMessages = []; // { role: 'user'|'assistant', content: string }
+
+function buildChatContext() {
+  // Open tabs
+  const grouped = {};
+  for (const t of openTabs) {
+    if (t.isTabOut) continue;
+    let domain;
+    try { domain = new URL(t.url).hostname; } catch { domain = 'other'; }
+    if (!grouped[domain]) grouped[domain] = [];
+    grouped[domain].push(t.title || t.url);
+  }
+
+  let ctx = `The user has ${openTabs.filter(t => !t.isTabOut).length} open browser tabs:\n\n`;
+  for (const [domain, titles] of Object.entries(grouped)) {
+    ctx += `[${domain}] (${titles.length} tab${titles.length > 1 ? 's' : ''})\n`;
+    for (const title of titles) ctx += `  - ${title}\n`;
+    ctx += '\n';
+  }
+
+  // Recent history summary
+  if (currentHistoryAnalysis) {
+    const a = currentHistoryAnalysis;
+    ctx += `\nRecent browsing (${currentHistoryRange}): ${a.totalItems} pages across ${a.uniqueDomains} sites.\n`;
+    ctx += `Top sites: ${a.topDomains.slice(0, 5).map(d => `${friendlyDomain(d.domain)} (${d.visits})`).join(', ')}\n`;
+  }
+
+  return ctx;
+}
+
+async function callChat(userMessage) {
+  const apiKey = await getBookmarkApiKey();
+  if (!apiKey) throw new Error('No API key');
+
+  chatMessages.push({ role: 'user', content: userMessage });
+
+  const systemPrompt = `You are Tidy Tabby AI, a helpful assistant embedded in a browser new tab page. You can see the user's open tabs and recent browsing history. Help them organize, summarize, find, or reason about what they're working on.
+
+${buildChatContext()}
+
+Be concise and helpful. Use short, conversational responses. Match the user's language.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: chatMessages,
+    }),
+  });
+
+  if (!resp.ok) {
+    chatMessages.pop();
+    throw new Error(resp.status === 401 ? 'Invalid API key' : `API error: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const text = data.content?.[0]?.text || 'Sorry, I got an empty response.';
+  chatMessages.push({ role: 'assistant', content: text });
+  return text;
+}
+
+function appendChatMsg(role, text) {
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-msg-${role}`;
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+async function initChat() {
+  const apiKey = await getBookmarkApiKey();
+  const setup = document.getElementById('chatSetup');
+  const area = document.getElementById('chatArea');
+  if (apiKey) {
+    if (setup) setup.style.display = 'none';
+    if (area) area.style.display = '';
+  } else {
+    if (setup) setup.style.display = '';
+    if (area) area.style.display = 'none';
+  }
+}
+
+// Save API key from chat setup
+document.getElementById('chatKeySave')?.addEventListener('click', async () => {
+  const input = document.getElementById('chatKeyInput');
+  const key = input?.value.trim();
+  if (!key) return;
+  await saveBookmarkApiKey(key);
+  await initChat();
+  await initBookmarkAi(); // sync the bookmark AI key state too
+  document.getElementById('chatInput')?.focus();
+});
+
+document.getElementById('chatKeyInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('chatKeySave')?.click(); }
+});
+
+// Suggestion buttons
+document.querySelectorAll('.chat-suggestion').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById('chatInput');
+    if (input) input.value = btn.dataset.prompt;
+    document.getElementById('chatInputForm')?.requestSubmit();
+  });
+});
+
+// Send message
+document.getElementById('chatInputForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSend');
+  const text = input?.value.trim();
+  if (!text || !input) return;
+
+  input.value = '';
+  input.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  // Hide suggestions after first message
+  const suggestions = document.getElementById('chatSuggestions');
+  if (suggestions) suggestions.style.display = 'none';
+
+  appendChatMsg('user', text);
+  const thinking = appendChatMsg('thinking', 'Thinking...');
+
+  try {
+    const reply = await callChat(text);
+    thinking?.remove();
+    appendChatMsg('assistant', reply);
+  } catch (err) {
+    thinking?.remove();
+    appendChatMsg('error', `Error: ${err.message}`);
+    if (err.message === 'Invalid API key') {
+      await saveBookmarkApiKey('');
+      await initChat();
+    }
+  } finally {
+    input.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
+  }
+});
+
+
+/* ----------------------------------------------------------------
+   EXPLORE TABS — switch between sections
    ---------------------------------------------------------------- */
 
 const explorePanels = {
@@ -3208,6 +3367,7 @@ const explorePanels = {
   activity: 'explorePanelActivity',
   bookmarks: 'explorePanelBookmarks',
   insights: 'explorePanelInsights',
+  chat: 'explorePanelChat',
 };
 
 function switchExploreTab(tabName) {
@@ -3257,4 +3417,5 @@ initPrivacyMode().then(async () => {
   await renderHistorySection('today');
   updateExploreCounts();
   initInsightsSection();
+  initChat();
 });

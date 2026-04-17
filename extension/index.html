@@ -122,6 +122,10 @@
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
         Insights
       </button>
+      <button class="explore-tab" data-explore="chat">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" /></svg>
+        AI Chat
+      </button>
     </div>
 
     <!-- Panel: Open Tabs -->
@@ -261,6 +265,42 @@
             </svg>
             Refresh
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: AI Chat -->
+    <div class="explore-panel" id="explorePanelChat" style="display:none">
+      <div class="chat-section" id="chatSection">
+        <!-- API key setup (shown when no key) -->
+        <div class="chat-setup" id="chatSetup" style="display:none">
+          <p class="chat-setup-text">Enter your Anthropic API key to start chatting.</p>
+          <div class="chat-setup-row">
+            <input type="password" class="chat-key-input" id="chatKeyInput" placeholder="sk-ant-...">
+            <button class="chat-key-save" id="chatKeySave">Save</button>
+          </div>
+          <p class="chat-setup-hint">Stored locally. Only sent to Anthropic's API.</p>
+        </div>
+
+        <!-- Chat area -->
+        <div class="chat-area" id="chatArea" style="display:none">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg chat-msg-assistant">Hi! I can see your open tabs and browsing history. Ask me anything — organize tabs, summarize what you've been doing, or just chat.</div>
+          </div>
+          <div class="chat-suggestions" id="chatSuggestions">
+            <button class="chat-suggestion" data-prompt="What am I working on right now?">What am I working on?</button>
+            <button class="chat-suggestion" data-prompt="Which tabs can I probably close?">Which tabs can I close?</button>
+            <button class="chat-suggestion" data-prompt="Summarize my browsing today in 3 bullet points.">Summarize my day</button>
+            <button class="chat-suggestion" data-prompt="Group my tabs by topic and suggest a focus order.">Organize my tabs</button>
+          </div>
+          <form class="chat-input-row" id="chatInputForm">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Ask about your tabs..." autocomplete="off">
+            <button type="submit" class="chat-send" id="chatSend">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+            </button>
+          </form>
         </div>
       </div>
     </div>
