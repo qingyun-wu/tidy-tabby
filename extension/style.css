@@ -2000,18 +2000,55 @@ body.privacy-mode .explore-section {
 }
 
 .session-date-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0 8px 28px;
+  border-bottom: 1px solid var(--warm-gray);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.session-date-header:first-child {
+  padding-top: 0;
+}
+
+.session-date-label {
   font-family: 'Newsreader', serif;
   font-size: 15px;
   font-weight: 500;
   font-style: italic;
   color: var(--ink);
-  padding: 16px 0 8px 28px;
-  border-bottom: 1px solid var(--warm-gray);
-  margin-bottom: 8px;
 }
 
-.session-date-header:first-child {
-  padding-top: 0;
+.session-day-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.session-day-stat {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.session-day-stat.browsing {
+  color: var(--accent-amber);
+  background: rgba(200, 113, 58, 0.08);
+}
+
+.session-day-stat.away {
+  color: var(--accent-sage);
+  background: rgba(90, 122, 98, 0.08);
+}
+
+.session-day-stat.count {
+  color: var(--muted);
+  background: rgba(154, 145, 138, 0.1);
 }
 
 .session-card {

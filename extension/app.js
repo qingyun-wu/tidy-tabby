@@ -2701,17 +2701,42 @@ function renderSessionView(items) {
   if (sessions.length === 0) return '<div class="history-empty">No sessions found.</div>';
 
   const MIN_GAP_TO_SHOW = 5 * 60 * 1000; // Only show gaps > 5 minutes
+
+  // Group sessions by date for per-day stats
+  const sessionsByDate = {};
+  for (const s of sessions) {
+    const dateKey = formatDate(s.end);
+    if (!sessionsByDate[dateKey]) sessionsByDate[dateKey] = [];
+    sessionsByDate[dateKey].push(s);
+  }
+
+  // Compute per-day summary
+  function dayStats(daySessions) {
+    const browsingMs = daySessions.reduce((sum, s) => sum + (s.end - s.start), 0);
+    const spanMs = daySessions[0].end - daySessions[daySessions.length - 1].start;
+    const awayMs = Math.max(0, spanMs - browsingMs);
+    return { browsingMs, awayMs, count: daySessions.length };
+  }
+
   const parts = [];
   let lastDate = '';
 
   for (let i = 0; i < sessions.length; i++) {
     const session = sessions[i];
 
-    // Date header
+    // Date header with daily stats
     const dateLabel = formatDate(session.end);
     if (dateLabel !== lastDate) {
       lastDate = dateLabel;
-      parts.push(`<div class="session-date-header">${dateLabel}</div>`);
+      const stats = dayStats(sessionsByDate[dateLabel]);
+      parts.push(`<div class="session-date-header">
+        <span class="session-date-label">${dateLabel}</span>
+        <span class="session-day-stats">
+          <span class="session-day-stat browsing">${formatDuration(stats.browsingMs)} browsing</span>
+          <span class="session-day-stat away">${formatDuration(stats.awayMs)} away</span>
+          <span class="session-day-stat count">${stats.count} session${stats.count !== 1 ? 's' : ''}</span>
+        </span>
+      </div>`);
     }
 
     // Render session
@@ -2722,21 +2747,13 @@ function renderSessionView(items) {
       const nextSession = sessions[i + 1];
       const gapMs = session.start - nextSession.end;
 
-      // Check if next session is on a different date
-      const nextDateLabel = formatDate(nextSession.end);
-      if (nextDateLabel !== dateLabel) {
-        // Show gap that spans to end of previous session's day
-        if (gapMs > MIN_GAP_TO_SHOW) {
-          parts.push(renderAfbGap(gapMs, session.start, nextSession.end));
-        }
-        // Date header will be added at top of next iteration
-      } else if (gapMs > MIN_GAP_TO_SHOW) {
+      if (gapMs > MIN_GAP_TO_SHOW) {
         parts.push(renderAfbGap(gapMs, session.start, nextSession.end));
       }
     }
   }
 
-  // Gap from last session to start of day (or start of range)
+  // Gap from last session to start of day
   const lastSession = sessions[sessions.length - 1];
   const dayStart = new Date(lastSession.start);
   dayStart.setHours(0, 0, 0, 0);
@@ -2745,11 +2762,11 @@ function renderSessionView(items) {
     parts.push(renderAfbGap(gapToStart, lastSession.start, dayStart.getTime()));
   }
 
-  // Summary: total browsing vs away time
+  // Overall summary
   const totalBrowsingMs = sessions.reduce((s, sess) => s + (sess.end - sess.start), 0);
   const firstSession = sessions[0];
   const totalSpanMs = firstSession.end - lastSession.start;
-  const totalAwayMs = totalSpanMs - totalBrowsingMs;
+  const totalAwayMs = Math.max(0, totalSpanMs - totalBrowsingMs);
 
   parts.push(`
   <div class="session-summary">
