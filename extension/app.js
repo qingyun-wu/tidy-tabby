@@ -1591,14 +1591,42 @@ document.getElementById('privacyUnlockBtn')?.addEventListener('click', togglePri
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    // Don't toggle if user is typing in search or motto input
     const active = document.activeElement;
-    if (active && (active.id === 'privacySearchInput' || active.id === 'psMottoInput')) {
+    if (active && (active.id === 'privacyAiInput' || active.id === 'psMottoInput')) {
       active.blur();
       return;
     }
     e.preventDefault();
     togglePrivacyMode();
+  }
+});
+
+// ---- Privacy mode AI chat ----
+document.getElementById('privacyAiForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('privacyAiInput');
+  const responseEl = document.getElementById('privacyAiResponse');
+  const text = input?.value.trim();
+  if (!text || !input || !responseEl) return;
+
+  const apiKey = await getBookmarkApiKey();
+  if (!apiKey) {
+    responseEl.textContent = 'Set up your API key in the Bookmarks tab first.';
+    responseEl.className = 'privacy-ai-response privacy-ai-error';
+    return;
+  }
+
+  input.value = '';
+  responseEl.textContent = 'Thinking...';
+  responseEl.className = 'privacy-ai-response privacy-ai-thinking';
+
+  try {
+    const reply = await callChat(text);
+    responseEl.textContent = reply;
+    responseEl.className = 'privacy-ai-response privacy-ai-reply';
+  } catch (err) {
+    responseEl.textContent = 'Error: ' + err.message;
+    responseEl.className = 'privacy-ai-response privacy-ai-error';
   }
 });
 

@@ -50,9 +50,10 @@
     <div class="privacy-time" id="privacyTime"></div>
     <div class="privacy-date" id="privacyDate"></div>
     <div class="privacy-motto" id="privacyMotto"></div>
-    <form class="privacy-search" id="privacySearch" action="https://www.google.com/search" method="GET">
-      <input type="text" name="q" class="privacy-search-input" id="privacySearchInput" placeholder="Search Google" autocomplete="off">
+    <form class="privacy-search" id="privacyAiForm">
+      <input type="text" class="privacy-search-input" id="privacyAiInput" placeholder="Ask AI anything..." autocomplete="off">
     </form>
+    <div class="privacy-ai-response" id="privacyAiResponse"></div>
     <div class="privacy-hint">Press <kbd>Esc</kbd> to show your tabs</div>
 
     <!-- Settings gear -->
@@ -79,7 +80,7 @@
         <input type="text" id="psMottoInput" class="privacy-setting-input" placeholder="Type your text here...">
       </div>
       <label class="privacy-setting-row">
-        <input type="checkbox" id="psSearch" checked> Search box
+        <input type="checkbox" id="psSearch" checked> AI assistant
       </label>
     </div>
   </div>

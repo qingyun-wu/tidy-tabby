@@ -1234,6 +1234,43 @@ body.privacy-mode .privacy-screen {
   justify-content: center;
 }
 
+/* ---- Privacy AI response ---- */
+.privacy-ai-response {
+  max-width: 600px;
+  width: 100%;
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  text-align: left;
+  white-space: pre-wrap;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.privacy-ai-response:empty {
+  display: none;
+}
+
+.privacy-ai-thinking {
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.privacy-ai-error {
+  color: var(--status-abandoned);
+  font-size: 13px;
+  text-align: center;
+}
+
+.privacy-ai-reply {
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
 .privacy-unlock-btn {
   background: none;
   border: 1px solid var(--warm-gray);
