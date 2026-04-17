@@ -3,10 +3,13 @@
   "name": "Tidy Tabby",
   "version": "1.0.0",
   "description": "Tidy Tabby keeps your tabs tidy. New tab page that groups your open tabs by domain and lets you close them with style.",
-  "permissions": ["tabs", "activeTab", "storage", "bookmarks", "history", "tabGroups"],
+  "permissions": ["tabs", "activeTab", "storage", "bookmarks", "history", "tabGroups", "sidePanel"],
   "host_permissions": ["https://api.anthropic.com/*"],
   "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {
     "default_title": "Tidy Tabby",
     "default_icon": {

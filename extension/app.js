@@ -40,11 +40,13 @@ async function fetchOpenTabs() {
 
     const tabs = await chrome.tabs.query({});
     openTabs = tabs.map(t => ({
-      id:       t.id,
-      url:      t.url,
-      title:    t.title,
-      windowId: t.windowId,
-      active:   t.active,
+      id:          t.id,
+      url:         t.url,
+      title:       t.title,
+      windowId:    t.windowId,
+      active:      t.active,
+      groupId:     t.groupId,
+      lastAccessed: t.lastAccessed,
       // Flag Tidy Tabby's own pages so we can detect duplicate new tabs
       isTabOut: t.url === newtabUrl || t.url === 'chrome://newtab/',
     }));
@@ -877,14 +879,38 @@ function renderDomainCard(group) {
       </button>`;
   }
 
+  // Staleness: based on most recently accessed tab in the group
+  const now = Date.now();
+  const lastActive = Math.max(...tabs.map(t => t.lastAccessed || 0));
+  const ageMs = lastActive ? now - lastActive : Infinity;
+  const THIRTY_MIN = 30 * 60 * 1000;
+  const FOUR_HOURS = 4 * 60 * 60 * 1000;
+  let stalenessClass = 'has-neutral-bar';
+  let stalenessLabel = '';
+  if (hasDupes) {
+    stalenessClass = 'has-amber-bar';
+  } else if (lastActive && ageMs < THIRTY_MIN) {
+    stalenessClass = 'has-active-bar';
+    stalenessLabel = '<span class="staleness-badge fresh">active</span>';
+  } else if (lastActive && ageMs < FOUR_HOURS) {
+    stalenessClass = 'has-amber-bar';
+    const mins = Math.round(ageMs / 60000);
+    stalenessLabel = `<span class="staleness-badge cooling">${mins < 60 ? mins + 'm' : Math.floor(mins/60) + 'h'} ago</span>`;
+  } else if (lastActive && ageMs >= FOUR_HOURS && ageMs < Infinity) {
+    stalenessClass = 'has-stale-bar';
+    const hrs = Math.floor(ageMs / 3600000);
+    stalenessLabel = `<span class="staleness-badge stale">${hrs}h ago</span>`;
+  }
+
   return `
-    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
+    <div class="mission-card domain-card ${stalenessClass}" data-domain-id="${stableId}">
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${isLanding ? 'Homepages' : (group.label || friendlyDomain(group.domain))}</span>
           ${tabBadge}
           ${dupeBadge}
+          ${stalenessLabel}
         </div>
         <div class="mission-pages">${pageChips}</div>
         <div class="actions">${actionsHtml}</div>
@@ -3603,20 +3629,6 @@ async function renderGroupView() {
     countEl.innerHTML = `${groups.length} group${groups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; ${realTabs.length} tabs`;
   }
 }
-
-// Fetch groupId for each tab (chrome.tabs.query includes it)
-const _origFetchOpenTabs = fetchOpenTabs;
-fetchOpenTabs = async function() {
-  await _origFetchOpenTabs();
-  // Enrich with groupId
-  try {
-    const tabs = await chrome.tabs.query({});
-    for (const t of tabs) {
-      const match = openTabs.find(ot => ot.id === t.id);
-      if (match) match.groupId = t.groupId;
-    }
-  } catch {}
-};
 
 // View toggle click handler
 document.addEventListener('click', async (e) => {

@@ -216,6 +216,31 @@ header {
   white-space: nowrap;
 }
 
+/* ---- Staleness badges ---- */
+.staleness-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.staleness-badge.fresh {
+  color: var(--status-active);
+  background: rgba(61, 122, 74, 0.08);
+}
+
+.staleness-badge.cooling {
+  color: var(--status-cooling);
+  background: rgba(184, 137, 46, 0.08);
+}
+
+.staleness-badge.stale {
+  color: var(--status-abandoned);
+  background: rgba(179, 90, 90, 0.08);
+}
+
+.mission-card.has-stale-bar::before { background: var(--status-abandoned); }
+
 /* ---- View toggle (Domains / Groups) ---- */
 .view-toggle {
   display: flex;
