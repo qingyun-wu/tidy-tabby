@@ -3453,11 +3453,8 @@ function connectTerminal() {
       if (term) term.write(msg.data);
     } else if (msg.type === 'disconnected' || msg.type === 'error') {
       if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Disconnected';
-      if (hintEl) {
-        hintEl.style.display = '';
-        if (msg.data) hintEl.innerHTML = `<span style="color:var(--status-abandoned)">${msg.data}</span><br>Run: <code>./install-terminal.sh</code> to set up native messaging.`;
-      }
-      if (term) term.writeln('\r\n\x1b[90m[' + (msg.data || 'Disconnected') + ']\x1b[0m');
+      if (hintEl) hintEl.style.display = '';
+      if (term) term.writeln('\r\n\x1b[31m[' + (msg.data || 'Disconnected') + ']\x1b[0m');
       termPort = null;
     }
   });

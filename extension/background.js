@@ -90,54 +90,45 @@ chrome.tabs.onUpdated.addListener(() => {
 // ─── Native Messaging Terminal Relay ─────────────────────────────────────────
 
 const NATIVE_HOST = 'com.tidytabby.terminal';
-let nativePort = null;
-let terminalClientPort = null;
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'terminal') return;
 
-  terminalClientPort = port;
+  let nativePort = null;
+  let connected = false;
 
   // Connect to native host
-  try {
-    nativePort = chrome.runtime.connectNative(NATIVE_HOST);
-  } catch (err) {
-    port.postMessage({ type: 'error', data: 'Failed to connect to native host. Run install.sh first.' });
-    return;
-  }
+  nativePort = chrome.runtime.connectNative(NATIVE_HOST);
 
   // Relay native host output → extension page
   nativePort.onMessage.addListener((msg) => {
-    if (terminalClientPort) {
-      terminalClientPort.postMessage(msg);
+    if (!connected) {
+      connected = true;
+      port.postMessage({ type: 'connected' });
     }
+    try { port.postMessage(msg); } catch {}
   });
 
   nativePort.onDisconnect.addListener(() => {
     const error = chrome.runtime.lastError?.message || 'Native host disconnected';
-    if (terminalClientPort) {
-      terminalClientPort.postMessage({ type: 'disconnected', data: error });
-    }
+    console.warn('[tidy-tabby] Native host disconnect:', error);
+    try { port.postMessage({ type: 'disconnected', data: error }); } catch {}
     nativePort = null;
   });
 
   // Relay extension page input → native host
   port.onMessage.addListener((msg) => {
     if (nativePort) {
-      nativePort.postMessage(msg);
+      try { nativePort.postMessage(msg); } catch {}
     }
   });
 
   port.onDisconnect.addListener(() => {
     if (nativePort) {
-      nativePort.disconnect();
+      try { nativePort.disconnect(); } catch {}
       nativePort = null;
     }
-    terminalClientPort = null;
   });
-
-  // Signal ready
-  port.postMessage({ type: 'connected' });
 });
 
 // ─── Initial run ─────────────────────────────────────────────────────────────
