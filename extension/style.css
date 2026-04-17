@@ -1488,6 +1488,125 @@ body.privacy-mode .privacy-screen {
   column-span: all;
 }
 
+/* ---- Bookmark chip action: move button ---- */
+.chip-move:hover {
+  color: var(--accent-slate);
+  background: rgba(90, 107, 122, 0.08);
+}
+
+/* ---- Move-to-folder dropdown ---- */
+.bm-move-dropdown {
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(26, 22, 19, 0.12);
+  width: 240px;
+  max-height: 360px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: fadeUp 0.15s ease both;
+}
+
+.bm-move-suggestion {
+  padding: 10px 14px 6px;
+}
+
+.bm-move-suggestion-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-sage);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.bm-move-suggested {
+  font-weight: 500 !important;
+  color: var(--accent-sage) !important;
+  background: rgba(90, 122, 98, 0.06);
+}
+
+.bm-move-create-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+}
+
+.bm-move-new-input {
+  flex: 1;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  padding: 7px 10px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+}
+
+.bm-move-new-input:focus {
+  border-color: var(--accent-amber);
+}
+
+.bm-move-create-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--accent-sage);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.bm-move-create-btn:hover {
+  background: rgba(90, 122, 98, 0.08);
+  border-color: var(--accent-sage);
+}
+
+.bm-move-divider {
+  height: 1px;
+  background: var(--warm-gray);
+  margin: 0 14px;
+}
+
+.bm-move-list {
+  overflow-y: auto;
+  max-height: 220px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bm-move-option {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bm-move-option:hover {
+  background: rgba(26, 22, 19, 0.04);
+}
+
 /* Hide bookmarks in privacy mode */
 body.privacy-mode .bookmarks-section {
   display: none !important;

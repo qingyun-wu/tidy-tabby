@@ -1676,12 +1676,13 @@ async function fetchBookmarks() {
  * Recursively walks the bookmark tree and returns a flat array of
  * { title, url, folder, folderPath, dateAdded }.
  */
-function flattenBookmarks(nodes, path = []) {
+function flattenBookmarks(nodes, path = [], parentId = null) {
   const results = [];
   for (const node of nodes) {
     if (node.url) {
       results.push({
         id: node.id,
+        parentId: node.parentId || parentId,
         title: node.title || node.url,
         url: node.url,
         folder: path.length > 0 ? path[path.length - 1] : 'Other',
@@ -1692,10 +1693,64 @@ function flattenBookmarks(nodes, path = []) {
     if (node.children) {
       const folderName = node.title || '';
       const newPath = folderName ? [...path, folderName] : path;
-      results.push(...flattenBookmarks(node.children, newPath));
+      results.push(...flattenBookmarks(node.children, newPath, node.id));
     }
   }
   return results;
+}
+
+/**
+ * collectFolders(nodes, path)
+ *
+ * Recursively collects all bookmark folders as { id, title, path }.
+ */
+function collectFolders(nodes, path = []) {
+  const results = [];
+  for (const node of nodes) {
+    if (node.children) {
+      const folderName = node.title || '';
+      const newPath = folderName ? [...path, folderName] : path;
+      if (folderName) {
+        results.push({ id: node.id, title: folderName, path: newPath.join(' / ') });
+      }
+      results.push(...collectFolders(node.children, newPath));
+    }
+  }
+  return results;
+}
+
+/**
+ * suggestFolderName(url, title)
+ *
+ * Suggests a folder name for a bookmark based on its URL domain and content.
+ */
+function suggestFolderName(url, title) {
+  let hostname = '';
+  try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+
+  // Category mappings based on domain patterns
+  const categories = {
+    'Dev':        ['github.com', 'stackoverflow.com', 'npmjs.com', 'developer.mozilla.org', 'codepen.io', 'gitlab.com', 'bitbucket.org', 'dev.to', 'medium.com'],
+    'AI & ML':    ['huggingface.co', 'arxiv.org', 'openai.com', 'chatgpt.com', 'claude.ai', 'gemini.google.com', 'kaggle.com'],
+    'Social':     ['x.com', 'twitter.com', 'reddit.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'threads.net', 'mastodon.social'],
+    'News':       ['news.ycombinator.com', 'techcrunch.com', 'theverge.com', 'arstechnica.com', 'bbc.com', 'cnn.com', 'reuters.com', 'nytimes.com'],
+    'Video':      ['youtube.com', 'vimeo.com', 'twitch.tv', 'netflix.com', 'bilibili.com'],
+    'Shopping':   ['amazon.com', 'ebay.com', 'etsy.com', 'shopify.com', 'taobao.com'],
+    'Design':     ['figma.com', 'dribbble.com', 'behance.net', 'canva.com', 'fonts.google.com'],
+    'Docs':       ['docs.google.com', 'notion.so', 'confluence.atlassian.net', 'dropbox.com', 'drive.google.com'],
+    'Music':      ['spotify.com', 'music.youtube.com', 'soundcloud.com', 'music.apple.com'],
+    'Productivity': ['calendar.google.com', 'mail.google.com', 'slack.com', 'discord.com', 'trello.com', 'asana.com', 'linear.app'],
+    'Reference':  ['wikipedia.org', 'en.wikipedia.org', 'wikimedia.org', 'dictionary.com', 'mdn.io'],
+  };
+
+  for (const [category, domains] of Object.entries(categories)) {
+    if (domains.some(d => hostname === d || hostname.endsWith('.' + d))) {
+      return category;
+    }
+  }
+
+  // Fallback: use the friendly domain name
+  return friendlyDomain(hostname);
 }
 
 /**
@@ -1794,21 +1849,7 @@ function renderBookmarkCard(group) {
   const visibleBookmarks = group.bookmarks.slice(0, 6);
   const extraCount = count - visibleBookmarks.length;
 
-  const chips = visibleBookmarks.map(bm => {
-    const label = stripTitleNoise(bm.title || '');
-    let domain = '';
-    try { domain = new URL(bm.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
-    const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    const isOpen = openTabs.some(t => t.url === bm.url);
-    const openIndicator = isOpen ? ' <span class="bookmark-open-indicator" title="Already open">●</span>' : '';
-
-    return `<div class="page-chip clickable" data-action="open-bookmark" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}${openIndicator}</span>
-    </div>`;
-  }).join('');
+  const chips = visibleBookmarks.map(bm => renderBookmarkChip(bm)).join('');
 
   const overflowHtml = extraCount > 0 ? renderBookmarkOverflow(group.bookmarks.slice(6)) : '';
 
@@ -1829,22 +1870,32 @@ function renderBookmarkCard(group) {
     </div>`;
 }
 
-function renderBookmarkOverflow(hiddenBookmarks) {
-  const hiddenChips = hiddenBookmarks.map(bm => {
-    const label = stripTitleNoise(bm.title || '');
-    let domain = '';
-    try { domain = new URL(bm.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
-    const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    const isOpen = openTabs.some(t => t.url === bm.url);
-    const openIndicator = isOpen ? ' <span class="bookmark-open-indicator" title="Already open">●</span>' : '';
+function renderBookmarkChip(bm) {
+  const label = stripTitleNoise(bm.title || '');
+  let domain = '';
+  try { domain = new URL(bm.url).hostname; } catch {}
+  const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+  const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
+  const safeTitle = label.replace(/"/g, '&quot;');
+  const isOpen = openTabs.some(t => t.url === bm.url);
+  const openIndicator = isOpen ? ' <span class="bookmark-open-indicator" title="Already open">●</span>' : '';
 
-    return `<div class="page-chip clickable" data-action="open-bookmark" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}${openIndicator}</span>
-    </div>`;
-  }).join('');
+  return `<div class="page-chip clickable" data-action="open-bookmark" data-tab-url="${safeUrl}" data-bm-id="${bm.id}" title="${safeTitle}">
+    ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+    <span class="chip-text">${label}${openIndicator}</span>
+    <div class="chip-actions">
+      <button class="chip-action chip-move" data-action="move-bookmark" data-bm-id="${bm.id}" data-bm-url="${safeUrl}" data-bm-title="${safeTitle}" title="Move to folder">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
+      </button>
+      <button class="chip-action chip-close" data-action="delete-bookmark" data-bm-id="${bm.id}" title="Delete bookmark">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderBookmarkOverflow(hiddenBookmarks) {
+  const hiddenChips = hiddenBookmarks.map(bm => renderBookmarkChip(bm)).join('');
 
   return `
     <div class="page-chips-overflow" style="display:none">${hiddenChips}</div>
@@ -1898,9 +1949,11 @@ async function renderBookmarksSection() {
     foldersEl.innerHTML = groups.map(g => renderBookmarkCard(g)).join('');
   }
 
-  // Store for search
+  // Store for search and management
   section._allBookmarks = allBookmarks;
   section._groups = groups;
+  section._folderTree = tree;
+  section._folders = collectFolders(tree);
 }
 
 // ---- Bookmark search ----
@@ -1936,21 +1989,226 @@ document.addEventListener('input', (e) => {
   foldersEl.innerHTML = groups.map(g => renderBookmarkCard(g)).join('');
 });
 
-// ---- Handle bookmark click (open in new tab or focus existing) ----
+// ---- Handle bookmark actions via event delegation ----
 document.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-action="open-bookmark"]');
-  if (!el) return;
+  const actionEl = e.target.closest('[data-action]');
+  if (!actionEl) return;
+  const action = actionEl.dataset.action;
 
-  const url = el.dataset.tabUrl;
-  if (!url) return;
+  // ---- Open bookmark (click on chip) ----
+  if (action === 'open-bookmark') {
+    // Don't trigger if user clicked a nested action button
+    if (e.target.closest('.chip-actions')) return;
 
-  // If already open, focus it
-  const existing = openTabs.find(t => t.url === url);
-  if (existing) {
-    await focusTab(url);
-  } else {
-    await chrome.tabs.create({ url, active: false });
-    showToast('Opened bookmark');
+    const url = actionEl.dataset.tabUrl;
+    if (!url) return;
+
+    const existing = openTabs.find(t => t.url === url);
+    if (existing) {
+      await focusTab(url);
+    } else {
+      await chrome.tabs.create({ url, active: false });
+      showToast('Opened bookmark');
+    }
+    return;
+  }
+
+  // ---- Delete bookmark ----
+  if (action === 'delete-bookmark') {
+    e.stopPropagation();
+    const bmId = actionEl.dataset.bmId;
+    if (!bmId) return;
+
+    try {
+      await chrome.bookmarks.remove(bmId);
+    } catch (err) {
+      showToast('Failed to delete bookmark');
+      return;
+    }
+
+    // Animate chip out
+    const chip = actionEl.closest('.page-chip');
+    if (chip) {
+      chip.style.transition = 'opacity 0.2s, transform 0.2s';
+      chip.style.opacity = '0';
+      chip.style.transform = 'scale(0.8)';
+      setTimeout(() => {
+        chip.remove();
+        // If card is now empty, remove it
+        const parentCard = chip.closest ? null : null; // chip already removed
+        document.querySelectorAll('.bookmark-card').forEach(c => {
+          if (c.querySelectorAll('.page-chip[data-action="open-bookmark"]').length === 0) {
+            c.style.transition = 'opacity 0.25s, transform 0.25s';
+            c.style.opacity = '0';
+            c.style.transform = 'scale(0.95)';
+            setTimeout(() => c.remove(), 250);
+          }
+        });
+      }, 200);
+    }
+
+    showToast('Bookmark deleted');
+    // Update stored data
+    const section = document.getElementById('bookmarksSection');
+    if (section && section._allBookmarks) {
+      section._allBookmarks = section._allBookmarks.filter(bm => bm.id !== bmId);
+      section._groups = groupBookmarksByFolder(section._allBookmarks);
+    }
+    return;
+  }
+
+  // ---- Move bookmark — show folder picker dropdown ----
+  if (action === 'move-bookmark') {
+    e.stopPropagation();
+    closeMoveDropdown(); // close any existing one
+
+    const bmId = actionEl.dataset.bmId;
+    const bmUrl = actionEl.dataset.bmUrl;
+    const bmTitle = actionEl.dataset.bmTitle;
+    if (!bmId) return;
+
+    const section = document.getElementById('bookmarksSection');
+    const folders = section?._folders || [];
+    const suggested = suggestFolderName(bmUrl, bmTitle);
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'bm-move-dropdown';
+    dropdown.id = 'bmMoveDropdown';
+    dropdown.dataset.bmId = bmId;
+
+    // Suggested folder at top
+    let suggestedHtml = '';
+    if (suggested) {
+      const existingFolder = folders.find(f => f.title === suggested);
+      if (existingFolder) {
+        suggestedHtml = `<div class="bm-move-suggestion">
+          <span class="bm-move-suggestion-label">Suggested</span>
+          <button class="bm-move-option bm-move-suggested" data-action="move-to-folder" data-folder-id="${existingFolder.id}" data-bm-id="${bmId}">
+            ${suggested}
+          </button>
+        </div>`;
+      } else {
+        suggestedHtml = `<div class="bm-move-suggestion">
+          <span class="bm-move-suggestion-label">Suggested — create new folder</span>
+          <button class="bm-move-option bm-move-suggested" data-action="move-to-new-folder" data-folder-name="${suggested}" data-bm-id="${bmId}">
+            + ${suggested}
+          </button>
+        </div>`;
+      }
+    }
+
+    const folderListHtml = folders
+      .slice(0, 15)
+      .map(f => `<button class="bm-move-option" data-action="move-to-folder" data-folder-id="${f.id}" data-bm-id="${bmId}" title="${f.path}">${f.title}</button>`)
+      .join('');
+
+    dropdown.innerHTML = `
+      ${suggestedHtml}
+      <div class="bm-move-create-row">
+        <input type="text" class="bm-move-new-input" id="bmMoveNewInput" placeholder="New folder name..." autocomplete="off">
+        <button class="bm-move-create-btn" data-action="move-to-new-folder-input" data-bm-id="${bmId}" title="Create & move">+</button>
+      </div>
+      <div class="bm-move-divider"></div>
+      <div class="bm-move-list">${folderListHtml}</div>
+    `;
+
+    // Position near the button
+    const rect = actionEl.getBoundingClientRect();
+    dropdown.style.position = 'fixed';
+    dropdown.style.top = (rect.bottom + 4) + 'px';
+    dropdown.style.left = Math.max(8, rect.left - 100) + 'px';
+    dropdown.style.zIndex = '200';
+
+    document.body.appendChild(dropdown);
+
+    // Focus the input
+    setTimeout(() => document.getElementById('bmMoveNewInput')?.focus(), 50);
+
+    // Enter key in the new folder input
+    dropdown.querySelector('#bmMoveNewInput')?.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        dropdown.querySelector('[data-action="move-to-new-folder-input"]')?.click();
+      }
+      if (ev.key === 'Escape') {
+        closeMoveDropdown();
+      }
+    });
+
+    return;
+  }
+
+  // ---- Move to existing folder ----
+  if (action === 'move-to-folder') {
+    e.stopPropagation();
+    const bmId = actionEl.dataset.bmId;
+    const folderId = actionEl.dataset.folderId;
+    if (!bmId || !folderId) return;
+
+    try {
+      await chrome.bookmarks.move(bmId, { parentId: folderId });
+      showToast(`Moved to ${actionEl.textContent.trim()}`);
+    } catch {
+      showToast('Failed to move bookmark');
+    }
+
+    closeMoveDropdown();
+    await renderBookmarksSection();
+    return;
+  }
+
+  // ---- Move to new folder (from suggestion) ----
+  if (action === 'move-to-new-folder') {
+    e.stopPropagation();
+    const bmId = actionEl.dataset.bmId;
+    const folderName = actionEl.dataset.folderName;
+    if (!bmId || !folderName) return;
+
+    try {
+      // Create folder under "Bookmarks Bar" (id "1") by default
+      const newFolder = await chrome.bookmarks.create({ parentId: '1', title: folderName });
+      await chrome.bookmarks.move(bmId, { parentId: newFolder.id });
+      showToast(`Created "${folderName}" and moved bookmark`);
+    } catch {
+      showToast('Failed to create folder');
+    }
+
+    closeMoveDropdown();
+    await renderBookmarksSection();
+    return;
+  }
+
+  // ---- Move to new folder (from text input) ----
+  if (action === 'move-to-new-folder-input') {
+    e.stopPropagation();
+    const bmId = actionEl.dataset.bmId;
+    const input = document.getElementById('bmMoveNewInput');
+    const folderName = input?.value.trim();
+    if (!bmId || !folderName) return;
+
+    try {
+      const newFolder = await chrome.bookmarks.create({ parentId: '1', title: folderName });
+      await chrome.bookmarks.move(bmId, { parentId: newFolder.id });
+      showToast(`Created "${folderName}" and moved bookmark`);
+    } catch {
+      showToast('Failed to create folder');
+    }
+
+    closeMoveDropdown();
+    await renderBookmarksSection();
+    return;
+  }
+});
+
+function closeMoveDropdown() {
+  document.getElementById('bmMoveDropdown')?.remove();
+}
+
+// Close move dropdown when clicking outside
+document.addEventListener('mousedown', (e) => {
+  const dropdown = document.getElementById('bmMoveDropdown');
+  if (dropdown && !dropdown.contains(e.target) && !e.target.closest('[data-action="move-bookmark"]')) {
+    closeMoveDropdown();
   }
 });
 
