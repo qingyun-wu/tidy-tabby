@@ -3437,7 +3437,6 @@ const explorePanels = {
   tabs: 'explorePanelTabs',
   activity: 'explorePanelActivity',
   bookmarks: 'explorePanelBookmarks',
-  insights: 'explorePanelInsights',
   chat: 'explorePanelChat',
 };
 
@@ -3833,6 +3832,5 @@ initPrivacyMode().then(async () => {
   initBookmarkAi();
   await renderHistorySection('today');
   updateExploreCounts();
-  initInsightsSection();
   initChat();
 });
