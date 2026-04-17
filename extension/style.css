@@ -2545,6 +2545,17 @@ body.privacy-mode .privacy-screen {
 }
 
 /* ---- Session summary footer ---- */
+/* Idle disclaimer */
+.idle-disclaimer {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(200, 113, 58, 0.05);
+  border: 1px solid rgba(200, 113, 58, 0.12);
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+}
+
 .session-summary {
   display: flex;
   align-items: center;

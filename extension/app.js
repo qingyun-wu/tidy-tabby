@@ -2862,6 +2862,20 @@ let currentHistoryView = 'domain';
 let currentHistoryAnalysis = null;
 let currentHistoryItems = null;
 
+async function checkIdleDisclaimer(container) {
+  try {
+    const state = await chrome.idle.queryState(300); // 5 minutes
+    if (state === 'idle' || state === 'locked') {
+      const existing = container.querySelector('.idle-disclaimer');
+      if (existing) return; // already shown
+      const el = document.createElement('div');
+      el.className = 'idle-disclaimer';
+      el.textContent = 'You were away recently — session times may not reflect actual screen time.';
+      container.insertBefore(el, container.firstChild);
+    }
+  } catch {}
+}
+
 async function renderHistorySection(range = 'today', view = currentHistoryView) {
   const section = document.getElementById('historySection');
   const countEl = document.getElementById('historyCount');
@@ -2899,6 +2913,8 @@ async function renderHistorySection(range = 'today', view = currentHistoryView) 
     if (timelineEl) {
       timelineEl.className = 'history-timeline session-view';
       timelineEl.innerHTML = renderSessionView(items);
+      // Check idle state and show disclaimer if user was recently away
+      checkIdleDisclaimer(timelineEl);
     }
   } else {
     if (timelineEl) {
