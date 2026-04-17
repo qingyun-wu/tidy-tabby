@@ -1195,8 +1195,10 @@ body.privacy-mode .privacy-toggle {
 /* ---- Privacy mode: hide dashboard content ---- */
 body.privacy-mode .tab-cleanup-banner,
 body.privacy-mode .explore-section,
+body.privacy-mode .explore-section *,
 body.privacy-mode footer {
   display: none !important;
+  visibility: hidden !important;
 }
 
 body.privacy-mode .container {
