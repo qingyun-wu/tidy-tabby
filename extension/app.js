@@ -2218,9 +2218,9 @@ async function renderBookmarksSection() {
     }
   }
 
-  // Old bookmarks banner
+  // Old bookmarks banner (exclude Archive folder)
   const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
-  const agedCount = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo).length;
+  const agedCount = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo && !bm.folderPath.startsWith('Archive')).length;
   const agedBanner = document.getElementById('bmAgedBanner');
   const agedCountEl = document.getElementById('bmAgedCount');
   if (agedBanner) {
@@ -2322,7 +2322,7 @@ document.addEventListener('click', async (e) => {
     const allBookmarks = section?._allBookmarks || [];
 
     const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
-    const aged = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo);
+    const aged = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo && !bm.folderPath.startsWith('Archive'));
     if (aged.length === 0) return;
 
     actionEl.disabled = true;
