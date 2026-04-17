@@ -1587,6 +1587,7 @@ async function togglePrivacyMode() {
 }
 
 document.getElementById('privacyToggle')?.addEventListener('click', togglePrivacyMode);
+document.getElementById('privacyUnlockBtn')?.addEventListener('click', togglePrivacyMode);
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {

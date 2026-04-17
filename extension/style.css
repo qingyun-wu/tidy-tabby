@@ -1213,14 +1213,7 @@ body.privacy-mode .container {
 }
 
 body.privacy-mode header {
-  border-bottom: none;
-  margin-bottom: 0;
-  position: relative;
-  z-index: 51;
-}
-
-body.privacy-mode .header-left {
-  display: none;
+  display: none !important;
 }
 
 body.privacy-mode .privacy-screen {
@@ -1239,6 +1232,24 @@ body.privacy-mode .privacy-screen {
   z-index: 50;
   background: var(--paper);
   justify-content: center;
+}
+
+.privacy-unlock-btn {
+  background: none;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--accent-amber);
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.privacy-unlock-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
 .privacy-time {
