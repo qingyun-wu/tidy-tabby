@@ -177,6 +177,27 @@ body {
   padding: 24px 0;
 }
 
+/* ---- Current page indicator ---- */
+.sp-current-page {
+  font-size: 11px;
+  padding: 8px 14px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--warm-gray);
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-current-label {
+  color: var(--muted);
+}
+
+.sp-current-title {
+  color: var(--ink);
+  font-weight: 500;
+}
+
 /* ---- Chat ---- */
 #spPanelChat {
   padding: 0 14px;

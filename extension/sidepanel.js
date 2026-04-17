@@ -13,7 +13,10 @@ document.addEventListener('click', (e) => {
   document.querySelectorAll('.sp-tab').forEach(t => t.classList.toggle('active', t.dataset.spTab === name));
   document.getElementById('spPanelTabs').style.display = name === 'tabs' ? '' : 'none';
   document.getElementById('spPanelChat').style.display = name === 'chat' ? '' : 'none';
-  if (name === 'chat') document.getElementById('spChatInput')?.focus();
+  if (name === 'chat') {
+    document.getElementById('spChatInput')?.focus();
+    autoSummarizeIfChatOpen();
+  }
 });
 
 // ---- Fetch and render tabs ----
@@ -100,6 +103,100 @@ chrome.tabs.onCreated.addListener(scheduleRefresh);
 chrome.tabs.onRemoved.addListener(scheduleRefresh);
 chrome.tabs.onUpdated.addListener((_, c) => { if (c.url || c.title) scheduleRefresh(); });
 
+// ---- Current page tracking ----
+
+let currentPage = { title: '', url: '' };
+
+async function updateCurrentPage() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && !tab.url?.startsWith('chrome')) {
+      currentPage = { title: tab.title || '', url: tab.url || '' };
+    }
+  } catch {}
+  // Update UI
+  const el = document.getElementById('spCurrentPage');
+  if (el && currentPage.url) {
+    let domain = '';
+    try { domain = new URL(currentPage.url).hostname.replace(/^www\./, ''); } catch {}
+    el.innerHTML = `<span class="sp-current-label">Viewing:</span> <span class="sp-current-title">${currentPage.title || domain}</span>`;
+    el.style.display = '';
+  } else if (el) {
+    el.style.display = 'none';
+  }
+}
+
+let lastSummarizedUrl = '';
+
+chrome.tabs.onActivated.addListener(async () => {
+  await updateCurrentPage();
+  autoSummarizeIfChatOpen();
+});
+chrome.tabs.onUpdated.addListener(async (_, c) => {
+  if (c.title || c.url) {
+    await updateCurrentPage();
+    autoSummarizeIfChatOpen();
+  }
+});
+
+function autoSummarizeIfChatOpen() {
+  const chatPanel = document.getElementById('spPanelChat');
+  if (!chatPanel || chatPanel.style.display === 'none') return;
+  if (!currentPage.url || currentPage.url === lastSummarizedUrl) return;
+  // Don't auto-summarize extension pages or empty tabs
+  if (currentPage.url.startsWith('chrome') || currentPage.url === 'about:blank') return;
+  lastSummarizedUrl = currentPage.url;
+  triggerPageSummary();
+}
+
+async function triggerPageSummary() {
+  const apiKey = await getApiKey();
+  if (!apiKey) return;
+
+  const messagesEl = document.getElementById('spChatMessages');
+  if (!messagesEl) return;
+
+  // Clear previous conversation for fresh page context
+  spMessages = [];
+  messagesEl.innerHTML = '';
+
+  const thinking = appendMsg('thinking', `Reading: ${currentPage.title || currentPage.url}...`);
+
+  const prompt = `Briefly summarize what this page is about in 2-3 sentences, then suggest 2 things I might want to ask about it.`;
+  spMessages.push({ role: 'user', content: prompt });
+
+  try {
+    const tabs = await chrome.tabs.query({});
+    const realTabs = tabs.filter(t => !t.url?.startsWith('chrome'));
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 512,
+        system: `You are Tidy Tabby AI in a browser side panel. The user is currently viewing a page. Summarize it based on the title and URL. Be concise.\n\n${buildContext(realTabs)}\n\nMatch the user's language.`,
+        messages: spMessages,
+      }),
+    });
+
+    if (!resp.ok) throw new Error(`Error ${resp.status}`);
+    const data = await resp.json();
+    const reply = data.content?.[0]?.text || '';
+    spMessages.push({ role: 'assistant', content: reply });
+    thinking?.remove();
+    appendMsg('assistant', reply);
+  } catch {
+    thinking?.remove();
+    // Silent fail — don't show error for auto-summary
+  }
+}
+
 // ---- AI Chat ----
 
 let spMessages = [];
@@ -119,7 +216,15 @@ function buildContext(tabs) {
     if (!grouped[d]) grouped[d] = [];
     grouped[d].push(t.title || t.url);
   }
-  let ctx = `User has ${tabs.length} open tabs:\n`;
+
+  let ctx = '';
+
+  // Current page gets top billing
+  if (currentPage.url) {
+    ctx += `The user is currently viewing:\n  Title: ${currentPage.title}\n  URL: ${currentPage.url}\n\n`;
+  }
+
+  ctx += `User has ${tabs.length} open tabs:\n`;
   for (const [d, titles] of Object.entries(grouped)) {
     ctx += `[${d}] ${titles.length}\n`;
     for (const t of titles) ctx += `  - ${t}\n`;
@@ -168,7 +273,7 @@ document.getElementById('spChatForm')?.addEventListener('submit', async (e) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
-        system: `You are Tidy Tabby AI, a concise assistant in a browser side panel.\n\n${buildContext(realTabs)}\n\nBe brief. Match the user's language.`,
+        system: `You are Tidy Tabby AI, a concise assistant in a browser side panel. The user can ask about the page they're currently viewing, their open tabs, or anything else.\n\n${buildContext(realTabs)}\n\nWhen the user asks about "this page" or "this article", refer to the current page info above. Be brief and helpful. Match the user's language.`,
         messages: spMessages,
       }),
     });
@@ -188,3 +293,4 @@ document.getElementById('spChatForm')?.addEventListener('submit', async (e) => {
 
 // ---- Init ----
 renderTabList();
+updateCurrentPage();
