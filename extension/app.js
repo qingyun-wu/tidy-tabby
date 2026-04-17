@@ -2584,8 +2584,7 @@ function formatDate(timestamp) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function sessionDuration(session) {
-  const ms = session.end - session.start;
+function formatDuration(ms) {
   const mins = Math.round(ms / 60000);
   if (mins < 1) return '< 1 min';
   if (mins < 60) return `${mins} min`;
@@ -2594,92 +2593,183 @@ function sessionDuration(session) {
   return remainder > 0 ? `${hrs}h ${remainder}m` : `${hrs}h`;
 }
 
+function sessionDuration(session) {
+  return formatDuration(session.end - session.start);
+}
+
+/**
+ * renderSessionCard(session)
+ *
+ * Renders a single browsing session as a timeline card.
+ */
+function renderSessionCard(session) {
+  const timeRange = `${formatTime(session.start)} — ${formatTime(session.end)}`;
+  const duration = sessionDuration(session);
+
+  // Group session items by domain
+  const domainMap = {};
+  for (const item of session.items) {
+    let hostname = '';
+    try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch { continue; }
+    if (!domainMap[hostname]) domainMap[hostname] = [];
+    domainMap[hostname].push(item);
+  }
+
+  const domainGroups = Object.entries(domainMap)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([domain, pages]) => {
+      const seen = new Set();
+      const unique = [];
+      for (const p of pages) {
+        if (!seen.has(p.url)) { seen.add(p.url); unique.push(p); }
+      }
+      return { domain, pages: unique };
+    });
+
+  const totalPages = domainGroups.reduce((s, g) => s + g.pages.length, 0);
+
+  const domainChips = domainGroups.slice(0, 6).map(g => {
+    const chips = g.pages.slice(0, 3).map(p => {
+      const label = stripTitleNoise(cleanTitle(p.title || '', g.domain));
+      const safeUrl = (p.url || '').replace(/"/g, '&quot;');
+      let dom = '';
+      try { dom = new URL(p.url).hostname; } catch {}
+      const faviconUrl = dom ? `https://www.google.com/s2/favicons?domain=${dom}&sz=16` : '';
+      return `<div class="page-chip clickable" data-action="open-history-link" data-tab-url="${safeUrl}" title="${label}">
+        ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+        <span class="chip-text">${label}</span>
+      </div>`;
+    }).join('');
+
+    const moreCount = g.pages.length - 3;
+    const moreHtml = moreCount > 0 ? `<div class="page-chip page-chip-overflow">+${moreCount} more</div>` : '';
+
+    return `<div class="session-domain-group">
+      <div class="session-domain-name">${friendlyDomain(g.domain)} <span class="session-domain-count">${g.pages.length}</span></div>
+      <div class="mission-pages">${chips}${moreHtml}</div>
+    </div>`;
+  }).join('');
+
+  const moreDomainsCount = domainGroups.length - 6;
+  const moreDomains = moreDomainsCount > 0 ? `<div class="session-more-domains">+${moreDomainsCount} more site${moreDomainsCount > 1 ? 's' : ''}</div>` : '';
+
+  return `
+  <div class="session-card">
+    <div class="session-dot-line">
+      <div class="session-dot"></div>
+      <div class="session-line-v"></div>
+    </div>
+    <div class="session-body">
+      <div class="session-header">
+        <span class="session-time">${timeRange}</span>
+        <span class="session-duration">${duration}</span>
+        <span class="session-page-count">${totalPages} page${totalPages !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="session-domains">${domainChips}${moreDomains}</div>
+    </div>
+  </div>`;
+}
+
+/**
+ * renderAfbGap(gapMs, startTime, endTime)
+ *
+ * Renders an "Away from browser" gap between sessions.
+ */
+function renderAfbGap(gapMs, startTime, endTime) {
+  const duration = formatDuration(gapMs);
+  return `
+  <div class="session-card afb-card">
+    <div class="session-dot-line">
+      <div class="session-dot afb-dot"></div>
+      <div class="session-line-v afb-line"></div>
+    </div>
+    <div class="session-body afb-body">
+      <div class="afb-header">
+        <span class="afb-time">${formatTime(endTime)} — ${formatTime(startTime)}</span>
+        <span class="afb-label">Away from browser</span>
+        <span class="afb-duration">${duration}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
 /**
  * renderSessionView(items)
  *
- * Renders history grouped by browsing sessions as a vertical timeline.
+ * Renders history grouped by browsing sessions as a vertical timeline,
+ * with "Away from browser" gaps shown between sessions.
  */
 function renderSessionView(items) {
   const sessions = groupIntoSessions(items);
   if (sessions.length === 0) return '<div class="history-empty">No sessions found.</div>';
 
+  const MIN_GAP_TO_SHOW = 5 * 60 * 1000; // Only show gaps > 5 minutes
+  const parts = [];
   let lastDate = '';
 
-  return sessions.map(session => {
+  for (let i = 0; i < sessions.length; i++) {
+    const session = sessions[i];
+
+    // Date header
     const dateLabel = formatDate(session.end);
-    let dateHeader = '';
     if (dateLabel !== lastDate) {
       lastDate = dateLabel;
-      dateHeader = `<div class="session-date-header">${dateLabel}</div>`;
+      parts.push(`<div class="session-date-header">${dateLabel}</div>`);
     }
 
-    const timeRange = `${formatTime(session.start)} — ${formatTime(session.end)}`;
-    const duration = sessionDuration(session);
+    // Render session
+    parts.push(renderSessionCard(session));
 
-    // Group session items by domain
-    const domainMap = {};
-    for (const item of session.items) {
-      let hostname = '';
-      try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch { continue; }
-      if (!domainMap[hostname]) domainMap[hostname] = [];
-      domainMap[hostname].push(item);
-    }
+    // AFB gap between this session and the next
+    if (i < sessions.length - 1) {
+      const nextSession = sessions[i + 1];
+      const gapMs = session.start - nextSession.end;
 
-    // Deduplicate within each domain
-    const domainGroups = Object.entries(domainMap)
-      .sort((a, b) => b[1].length - a[1].length)
-      .map(([domain, pages]) => {
-        const seen = new Set();
-        const unique = [];
-        for (const p of pages) {
-          if (!seen.has(p.url)) { seen.add(p.url); unique.push(p); }
+      // Check if next session is on a different date
+      const nextDateLabel = formatDate(nextSession.end);
+      if (nextDateLabel !== dateLabel) {
+        // Show gap that spans to end of previous session's day
+        if (gapMs > MIN_GAP_TO_SHOW) {
+          parts.push(renderAfbGap(gapMs, session.start, nextSession.end));
         }
-        return { domain, pages: unique };
-      });
+        // Date header will be added at top of next iteration
+      } else if (gapMs > MIN_GAP_TO_SHOW) {
+        parts.push(renderAfbGap(gapMs, session.start, nextSession.end));
+      }
+    }
+  }
 
-    const totalPages = domainGroups.reduce((s, g) => s + g.pages.length, 0);
+  // Gap from last session to start of day (or start of range)
+  const lastSession = sessions[sessions.length - 1];
+  const dayStart = new Date(lastSession.start);
+  dayStart.setHours(0, 0, 0, 0);
+  const gapToStart = lastSession.start - dayStart.getTime();
+  if (gapToStart > MIN_GAP_TO_SHOW) {
+    parts.push(renderAfbGap(gapToStart, lastSession.start, dayStart.getTime()));
+  }
 
-    const domainChips = domainGroups.slice(0, 6).map(g => {
-      const chips = g.pages.slice(0, 3).map(p => {
-        const label = stripTitleNoise(cleanTitle(p.title || '', g.domain));
-        const safeUrl = (p.url || '').replace(/"/g, '&quot;');
-        let dom = '';
-        try { dom = new URL(p.url).hostname; } catch {}
-        const faviconUrl = dom ? `https://www.google.com/s2/favicons?domain=${dom}&sz=16` : '';
-        return `<div class="page-chip clickable" data-action="open-history-link" data-tab-url="${safeUrl}" title="${label}">
-          ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-          <span class="chip-text">${label}</span>
-        </div>`;
-      }).join('');
+  // Summary: total browsing vs away time
+  const totalBrowsingMs = sessions.reduce((s, sess) => s + (sess.end - sess.start), 0);
+  const firstSession = sessions[0];
+  const totalSpanMs = firstSession.end - lastSession.start;
+  const totalAwayMs = totalSpanMs - totalBrowsingMs;
 
-      const moreCount = g.pages.length - 3;
-      const moreHtml = moreCount > 0 ? `<div class="page-chip page-chip-overflow">+${moreCount} more</div>` : '';
+  parts.push(`
+  <div class="session-summary">
+    <div class="session-summary-item">
+      <span class="session-summary-dot active"></span>
+      Browsing: <strong>${formatDuration(totalBrowsingMs)}</strong>
+    </div>
+    <div class="session-summary-item">
+      <span class="session-summary-dot away"></span>
+      Away: <strong>${formatDuration(totalAwayMs > 0 ? totalAwayMs : 0)}</strong>
+    </div>
+    <div class="session-summary-item">
+      ${sessions.length} session${sessions.length !== 1 ? 's' : ''} over ${formatDuration(totalSpanMs)}
+    </div>
+  </div>`);
 
-      return `<div class="session-domain-group">
-        <div class="session-domain-name">${friendlyDomain(g.domain)} <span class="session-domain-count">${g.pages.length}</span></div>
-        <div class="mission-pages">${chips}${moreHtml}</div>
-      </div>`;
-    }).join('');
-
-    const moreDomainsCount = domainGroups.length - 6;
-    const moreDomains = moreDomainsCount > 0 ? `<div class="session-more-domains">+${moreDomainsCount} more site${moreDomainsCount > 1 ? 's' : ''}</div>` : '';
-
-    return `${dateHeader}
-    <div class="session-card">
-      <div class="session-dot-line">
-        <div class="session-dot"></div>
-        <div class="session-line-v"></div>
-      </div>
-      <div class="session-body">
-        <div class="session-header">
-          <span class="session-time">${timeRange}</span>
-          <span class="session-duration">${duration}</span>
-          <span class="session-page-count">${totalPages} page${totalPages !== 1 ? 's' : ''}</span>
-        </div>
-        <div class="session-domains">${domainChips}${moreDomains}</div>
-      </div>
-    </div>`;
-  }).join('');
+  return parts.join('');
 }
 
 let currentHistoryRange = 'today';
