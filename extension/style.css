@@ -1727,13 +1727,75 @@ body.privacy-mode .privacy-screen {
 }
 
 /* ================================================================
-   BROWSING HISTORY SECTION
+   EXPLORE TABS — toggle between Recent Activity and Bookmarks
    ================================================================ */
 
-.history-section {
-  margin-top: 48px;
-  animation: fadeUp 0.5s ease 0.35s both;
+.explore-section {
+  margin-top: 40px;
+  animation: fadeUp 0.5s ease 0.3s both;
 }
+
+.explore-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--warm-gray);
+  padding-bottom: 0;
+}
+
+.explore-tab {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  transition: color 0.15s;
+  margin-bottom: -2px;
+  border-bottom: 2px solid transparent;
+}
+
+.explore-tab:hover {
+  color: var(--ink);
+}
+
+.explore-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent-amber);
+}
+
+.explore-tab-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(154, 145, 138, 0.12);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.explore-tab.active .explore-tab-count {
+  color: var(--accent-amber);
+  background: rgba(200, 113, 58, 0.1);
+}
+
+.explore-panel {
+  min-height: 100px;
+}
+
+/* Hide explore section in privacy mode */
+body.privacy-mode .explore-section {
+  display: none !important;
+}
+
+/* ================================================================
+   BROWSING HISTORY SECTION
+   ================================================================ */
 
 .history-section .section-header {
   margin-bottom: 16px;
@@ -2058,18 +2120,18 @@ body.privacy-mode .privacy-screen {
 
 /* ---- Away from browser (AFB) gap ---- */
 .afb-card {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .afb-dot {
-  background: var(--warm-gray) !important;
-  box-shadow: 0 0 0 2px var(--warm-gray) !important;
+  background: var(--accent-sage) !important;
+  box-shadow: 0 0 0 2px rgba(90, 122, 98, 0.2) !important;
   width: 8px !important;
   height: 8px !important;
 }
 
 .afb-line {
-  background: var(--warm-gray) !important;
+  background: rgba(90, 122, 98, 0.2) !important;
   border-style: dashed;
 }
 
@@ -2086,7 +2148,7 @@ body.privacy-mode .privacy-screen {
 
 .afb-time {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--accent-sage);
 }
 
 .afb-label {
@@ -2094,15 +2156,15 @@ body.privacy-mode .privacy-screen {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--muted);
-  background: rgba(154, 145, 138, 0.1);
+  color: var(--accent-sage);
+  background: rgba(90, 122, 98, 0.08);
   padding: 2px 8px;
   border-radius: 4px;
 }
 
 .afb-duration {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--accent-sage);
 }
 
 /* ---- Session summary footer ---- */
@@ -2141,13 +2203,9 @@ body.privacy-mode .privacy-screen {
 }
 
 .session-summary-dot.away {
-  background: var(--warm-gray);
+  background: var(--accent-sage);
 }
 
-/* Hide in privacy mode */
-body.privacy-mode .history-section {
-  display: none !important;
-}
 
 /* ================================================================
    DAILY INSIGHTS SECTION
@@ -2326,7 +2384,3 @@ body.privacy-mode .insights-section {
   display: none !important;
 }
 
-/* Hide bookmarks in privacy mode */
-body.privacy-mode .bookmarks-section {
-  display: none !important;
-}

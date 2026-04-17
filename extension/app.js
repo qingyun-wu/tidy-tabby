@@ -2056,11 +2056,8 @@ async function renderBookmarksSection() {
   const allBookmarks = flattenBookmarks(tree);
 
   if (allBookmarks.length === 0) {
-    section.style.display = 'none';
     return;
   }
-
-  section.style.display = 'block';
 
   // Count
   const countEl = document.getElementById('bookmarksCount');
@@ -2784,12 +2781,12 @@ async function renderHistorySection(range = 'today', view = currentHistoryView) 
   const timelineEl = document.getElementById('historyTimeline');
   if (!section) return;
 
+  const rangeChanged = range !== currentHistoryRange;
   currentHistoryRange = range;
   currentHistoryView = view;
-  section.style.display = '';
 
   // Only re-fetch if range changed
-  if (!currentHistoryItems || range !== currentHistoryRange || !currentHistoryAnalysis) {
+  if (!currentHistoryItems || rangeChanged) {
     currentHistoryItems = await fetchHistory(range);
   }
 
@@ -3190,6 +3187,43 @@ document.getElementById('insightsRefreshBtn')?.addEventListener('click', async (
 
 
 /* ----------------------------------------------------------------
+   EXPLORE TABS — switch between Recent Activity and Bookmarks
+   ---------------------------------------------------------------- */
+
+function switchExploreTab(tabName) {
+  // Toggle tab buttons
+  document.querySelectorAll('.explore-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.explore === tabName);
+  });
+  // Toggle panels
+  const activityPanel = document.getElementById('explorePanelActivity');
+  const bookmarksPanel = document.getElementById('explorePanelBookmarks');
+  if (activityPanel) activityPanel.style.display = tabName === 'activity' ? '' : 'none';
+  if (bookmarksPanel) bookmarksPanel.style.display = tabName === 'bookmarks' ? '' : 'none';
+}
+
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest('.explore-tab');
+  if (!tab) return;
+  const name = tab.dataset.explore;
+  if (name) switchExploreTab(name);
+});
+
+function updateExploreCounts() {
+  const activityCount = document.getElementById('exploreActivityCount');
+  const bookmarkCount = document.getElementById('exploreBookmarkCount');
+  const section = document.getElementById('bookmarksSection');
+
+  if (activityCount && currentHistoryAnalysis) {
+    activityCount.textContent = currentHistoryAnalysis.totalItems;
+  }
+  if (bookmarkCount && section && section._allBookmarks) {
+    bookmarkCount.textContent = section._allBookmarks.length;
+  }
+}
+
+
+/* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
 // Init privacy mode first to avoid content flash, then render
@@ -3198,5 +3232,6 @@ initPrivacyMode().then(async () => {
   await renderBookmarksSection();
   initBookmarkAi();
   await renderHistorySection('today');
+  updateExploreCounts();
   initInsightsSection();
 });
