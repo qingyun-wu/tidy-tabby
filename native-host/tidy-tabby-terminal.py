@@ -21,7 +21,12 @@ import fcntl
 import termios
 import threading
 
-SHELL = os.environ.get("SHELL", "/bin/zsh")
+import shutil
+
+# Default to Claude Code if installed, fallback to shell
+CLAUDE_PATH = shutil.which("claude")
+DEFAULT_CMD = CLAUDE_PATH if CLAUDE_PATH else os.environ.get("SHELL", "/bin/zsh")
+CMD = os.environ.get("TIDY_TABBY_CMD", DEFAULT_CMD)
 
 
 def read_native_message():
@@ -62,7 +67,10 @@ def main():
         os.close(slave_fd)
         env = os.environ.copy()
         env["TERM"] = "xterm-256color"
-        os.execvpe(SHELL, [SHELL, "-l"], env)
+        if CMD == CLAUDE_PATH:
+            os.execvpe(CMD, [CMD], env)
+        else:
+            os.execvpe(CMD, [CMD, "-l"], env)
 
     # Parent: relay between Chrome native messaging and PTY
     os.close(slave_fd)

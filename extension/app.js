@@ -3419,8 +3419,8 @@ function initTerminal() {
     term.open(container);
   }
 
-  term.writeln('\x1b[1;33mTidy Tabby Terminal\x1b[0m');
-  term.writeln('Click Connect to open a shell session.');
+  term.writeln('\x1b[1;33mTidy Tabby — Claude Code\x1b[0m');
+  term.writeln('Click Connect to start. Launches Claude Code if installed.');
   term.writeln('');
 
   // Send keystrokes to native host via background
