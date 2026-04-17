@@ -1194,6 +1194,7 @@ body.privacy-mode .privacy-toggle {
 
 /* ---- Privacy mode: hide dashboard content ---- */
 body.privacy-mode .tab-cleanup-banner,
+body.privacy-mode .explore-section,
 body.privacy-mode footer {
   display: none !important;
 }
@@ -1969,10 +1970,6 @@ body.privacy-mode .privacy-screen {
 .chat-send:hover { opacity: 0.8; }
 .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Hide explore section in privacy mode */
-body.privacy-mode .explore-section {
-  display: none !important;
-}
 
 /* ================================================================
    BROWSING HISTORY SECTION
