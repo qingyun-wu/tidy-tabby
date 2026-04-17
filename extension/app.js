@@ -2352,11 +2352,250 @@ document.addEventListener('mousedown', (e) => {
 
 
 /* ----------------------------------------------------------------
+   DAILY INSIGHTS — AI-generated daily report
+   ---------------------------------------------------------------- */
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10); // "2026-04-16"
+}
+
+async function getCachedInsight() {
+  try {
+    const result = await chrome.storage.local.get('dailyInsight');
+    return result.dailyInsight || null;
+  } catch { return null; }
+}
+
+async function saveCachedInsight(data) {
+  try { await chrome.storage.local.set({ dailyInsight: data }); } catch {}
+}
+
+/**
+ * buildInsightsContext()
+ *
+ * Builds a rich context string from open tabs + bookmarks for the AI
+ * to generate a daily summary.
+ */
+function buildInsightsContext() {
+  const realTabs = getRealTabs();
+
+  // Open tabs grouped by domain
+  const tabsByDomain = {};
+  for (const t of realTabs) {
+    let domain;
+    try { domain = new URL(t.url).hostname.replace(/^www\./, ''); } catch { domain = 'other'; }
+    if (!tabsByDomain[domain]) tabsByDomain[domain] = [];
+    tabsByDomain[domain].push({ title: t.title || t.url, url: t.url });
+  }
+
+  let ctx = `== OPEN TABS (${realTabs.length} total) ==\n\n`;
+  for (const [domain, tabs] of Object.entries(tabsByDomain).sort((a, b) => b[1].length - a[1].length)) {
+    ctx += `[${friendlyDomain(domain)}] (${tabs.length})\n`;
+    for (const t of tabs) {
+      ctx += `  - ${stripTitleNoise(t.title)} | ${t.url}\n`;
+    }
+    ctx += '\n';
+  }
+
+  // Recent bookmarks (last 30 days)
+  const section = document.getElementById('bookmarksSection');
+  const allBookmarks = section?._allBookmarks || [];
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const recentBookmarks = allBookmarks.filter(bm => bm.dateAdded > thirtyDaysAgo);
+
+  if (recentBookmarks.length > 0) {
+    ctx += `\n== RECENT BOOKMARKS (last 30 days, ${recentBookmarks.length} items) ==\n\n`;
+    for (const bm of recentBookmarks.slice(0, 50)) {
+      ctx += `  - [${bm.folder}] ${bm.title} | ${bm.url}\n`;
+    }
+    if (recentBookmarks.length > 50) {
+      ctx += `  ... and ${recentBookmarks.length - 50} more\n`;
+    }
+  }
+
+  // Saved for later
+  ctx += `\n== CONTEXT ==\n`;
+  ctx += `Date: ${getDateDisplay()}\n`;
+  ctx += `Total bookmarks: ${allBookmarks.length}\n`;
+
+  return ctx;
+}
+
+async function generateDailyInsight(forceRefresh = false) {
+  const apiKey = await getBookmarkApiKey();
+  if (!apiKey) {
+    return { error: 'no-key' };
+  }
+
+  // Check cache
+  if (!forceRefresh) {
+    const cached = await getCachedInsight();
+    if (cached && cached.date === getTodayKey()) {
+      return cached;
+    }
+  }
+
+  const context = buildInsightsContext();
+
+  const systemPrompt = `You are a personal productivity assistant embedded in a browser new tab page. Based on the user's open tabs and recent bookmarks, write a concise daily report.
+
+Structure your response EXACTLY like this:
+
+## What you're focused on
+A 2-3 sentence summary of what the user seems to be working on or interested in today, based on their open tabs.
+
+## Active threads
+List the main topics/projects as bullet points, each with a brief note. Group related tabs together.
+
+## All links
+List every open tab URL, grouped by topic. Format each as:
+- [Page Title](url)
+
+## Suggestions
+1-2 optional, brief suggestions (e.g. "You have 5 GitHub PRs open — might be review day" or "Lots of research tabs — consider bookmarking before closing").
+
+Keep it concise and useful. Match the user's language — if tab titles are mostly Chinese, write in Chinese; if English, write in English. Don't be overly chatty.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: context }],
+    }),
+  });
+
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error('Invalid API key');
+    throw new Error(`API error: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const text = data.content?.[0]?.text || 'No response.';
+
+  const result = { date: getTodayKey(), text, generatedAt: new Date().toISOString() };
+  await saveCachedInsight(result);
+  return result;
+}
+
+/**
+ * renderInsightHtml(text)
+ *
+ * Converts the markdown-ish AI response into styled HTML.
+ * Handles ## headings, bullet points, [links](url), **bold**.
+ */
+function renderInsightHtml(text) {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Links: [title](url)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="insight-link">$1</a>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // ## Headings
+    .replace(/^## (.+)$/gm, '<h3 class="insight-heading">$1</h3>')
+    // Bullet points
+    .replace(/^[-*] (.+)$/gm, '<div class="insight-bullet">$1</div>')
+    // Numbered lists
+    .replace(/^\d+\.\s+(.+)$/gm, '<div class="insight-bullet insight-numbered">$1</div>')
+    // Paragraphs
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
+async function initInsightsSection() {
+  const section = document.getElementById('insightsSection');
+  const dateEl = document.getElementById('insightsDate');
+  const body = document.getElementById('insightsBody');
+  const generateBtn = document.getElementById('insightsGenerateBtn');
+  const refreshBtn = document.getElementById('insightsRefreshBtn');
+  if (!section) return;
+
+  const apiKey = await getBookmarkApiKey();
+
+  // Always show the section
+  section.style.display = '';
+  if (dateEl) dateEl.textContent = getTodayKey();
+
+  // Check for cached report
+  const cached = await getCachedInsight();
+  if (cached && cached.date === getTodayKey() && body) {
+    body.innerHTML = `<div class="insight-content">${renderInsightHtml(cached.text)}</div>
+      <div class="insight-meta">Generated ${new Date(cached.generatedAt).toLocaleTimeString()}</div>`;
+    if (generateBtn) generateBtn.style.display = 'none';
+    if (refreshBtn) refreshBtn.style.display = '';
+  } else if (!apiKey) {
+    if (body) body.innerHTML = '<div class="insight-empty">Set up your API key in the Bookmarks section above, then come back to generate your daily report.</div>';
+  } else {
+    if (body) body.innerHTML = '<div class="insight-empty">Click below to generate today\'s report based on your open tabs and recent bookmarks.</div>';
+  }
+}
+
+// Generate button
+document.getElementById('insightsGenerateBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('insightsGenerateBtn');
+  const body = document.getElementById('insightsBody');
+  const refreshBtn = document.getElementById('insightsRefreshBtn');
+  if (!btn || !body) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Generating report...';
+  body.innerHTML = '<div class="insight-loading"><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div></div>';
+
+  try {
+    const result = await generateDailyInsight(false);
+    if (result.error === 'no-key') {
+      body.innerHTML = '<div class="insight-empty">Set up your API key in the Bookmarks section above first.</div>';
+      return;
+    }
+    body.innerHTML = `<div class="insight-content">${renderInsightHtml(result.text)}</div>
+      <div class="insight-meta">Generated ${new Date(result.generatedAt).toLocaleTimeString()}</div>`;
+    btn.style.display = 'none';
+    if (refreshBtn) refreshBtn.style.display = '';
+  } catch (err) {
+    body.innerHTML = `<div class="bookmark-ai-error">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+    </svg> Generate today's report`;
+  }
+});
+
+// Refresh button (regenerate)
+document.getElementById('insightsRefreshBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('insightsRefreshBtn');
+  const body = document.getElementById('insightsBody');
+  if (!btn || !body) return;
+
+  btn.disabled = true;
+  body.innerHTML = '<div class="insight-loading"><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div></div>';
+
+  try {
+    const result = await generateDailyInsight(true);
+    body.innerHTML = `<div class="insight-content">${renderInsightHtml(result.text)}</div>
+      <div class="insight-meta">Generated ${new Date(result.generatedAt).toLocaleTimeString()}</div>`;
+  } catch (err) {
+    body.innerHTML = `<div class="bookmark-ai-error">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+
+/* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
 // Init privacy mode first to avoid content flash, then render
-initPrivacyMode().then(() => {
-  renderDashboard();
-  renderBookmarksSection();
+initPrivacyMode().then(async () => {
+  await renderDashboard();
+  await renderBookmarksSection();
   initBookmarkAi();
+  initInsightsSection();
 });

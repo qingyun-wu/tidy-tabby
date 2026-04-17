@@ -1726,6 +1726,183 @@ body.privacy-mode .privacy-screen {
   background: rgba(26, 22, 19, 0.04);
 }
 
+/* ================================================================
+   DAILY INSIGHTS SECTION
+   ================================================================ */
+
+.insights-section {
+  margin-top: 48px;
+  animation: fadeUp 0.5s ease 0.4s both;
+}
+
+.insights-section .section-header {
+  margin-bottom: 16px;
+}
+
+.insights-body {
+  margin-bottom: 16px;
+}
+
+.insight-content {
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 10px;
+  padding: 22px 26px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.insight-content p {
+  margin-bottom: 8px;
+}
+
+.insight-heading {
+  font-family: 'Newsreader', serif;
+  font-size: 15px;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--ink);
+  margin: 18px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--warm-gray);
+}
+
+.insight-heading:first-child {
+  margin-top: 0;
+}
+
+.insight-bullet {
+  padding-left: 16px;
+  position: relative;
+  margin: 3px 0;
+}
+
+.insight-bullet::before {
+  content: '\2022';
+  position: absolute;
+  left: 3px;
+  color: var(--accent-amber);
+}
+
+.insight-numbered::before {
+  content: none;
+}
+
+.insight-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(200, 113, 58, 0.2);
+  transition: border-color 0.15s;
+}
+
+.insight-link:hover {
+  border-color: var(--accent-amber);
+}
+
+.insight-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 10px;
+  text-align: right;
+}
+
+.insight-empty {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+/* Generate / Refresh buttons */
+.insights-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.insights-generate-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: 1px solid rgba(200, 113, 58, 0.3);
+  border-radius: 20px;
+  background: rgba(200, 113, 58, 0.04);
+  color: var(--accent-amber);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.insights-generate-btn:hover {
+  background: rgba(200, 113, 58, 0.1);
+  border-color: var(--accent-amber);
+}
+
+.insights-generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.insights-refresh-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 20px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.insights-refresh-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.insights-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading animation */
+.insight-loading {
+  display: flex;
+  gap: 6px;
+  padding: 20px 0;
+  justify-content: center;
+}
+
+.insight-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  opacity: 0.3;
+  animation: insightPulse 1.2s ease-in-out infinite;
+}
+
+.insight-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.insight-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes insightPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Hide insights in privacy mode */
+body.privacy-mode .insights-section {
+  display: none !important;
+}
+
 /* Hide bookmarks in privacy mode */
 body.privacy-mode .bookmarks-section {
   display: none !important;
