@@ -2645,3 +2645,136 @@ body.privacy-mode .privacy-screen {
 }
 
 
+/* ================================================================
+   DARK MODE — follows system preference
+   ================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8e2da;
+    --paper: #1a1613;
+    --warm-gray: #2e2a26;
+    --muted: #7a726b;
+    --accent-amber: #e8a060;
+    --accent-sage: #7a9a82;
+    --accent-slate: #8a9baa;
+    --accent-rose: #d47a7a;
+    --status-active: #5a9a62;
+    --status-cooling: #d4a84e;
+    --status-abandoned: #d47a7a;
+    --card-bg: #22201c;
+    --shadow: rgba(0, 0, 0, 0.2);
+  }
+
+  /* Paper texture overlay — darken for dark mode */
+  body::before {
+    opacity: 0.015;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--paper);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--warm-gray);
+    border-radius: 3px;
+  }
+
+  /* Fix elements that use hardcoded rgba with light-mode assumptions */
+  .tab-cleanup-banner {
+    background: linear-gradient(135deg, rgba(232, 160, 96, 0.04), rgba(232, 160, 96, 0.09));
+    border-color: rgba(232, 160, 96, 0.18);
+  }
+
+  .nudge-banner {
+    background: linear-gradient(135deg, rgba(212, 122, 122, 0.04), rgba(212, 122, 122, 0.08));
+    border-color: rgba(212, 122, 122, 0.15);
+  }
+
+  .bookmark-suggestions {
+    background: linear-gradient(135deg, rgba(138, 155, 170, 0.04), rgba(138, 155, 170, 0.09));
+    border-color: rgba(138, 155, 170, 0.18);
+  }
+
+  .history-ai-response,
+  .bookmark-ai-response {
+    background: linear-gradient(135deg, rgba(122, 154, 130, 0.04), rgba(122, 154, 130, 0.08));
+    border-color: rgba(122, 154, 130, 0.15);
+  }
+
+  /* Privacy screen */
+  .privacy-screen {
+    background: var(--paper);
+  }
+
+  .privacy-search-input {
+    background: var(--card-bg);
+  }
+
+  /* Privacy AI response */
+  .privacy-ai-reply {
+    background: var(--card-bg);
+    border-color: var(--warm-gray);
+  }
+
+  /* Chat messages */
+  .chat-msg-user {
+    background: var(--accent-amber);
+    color: var(--paper);
+  }
+
+  /* Explore tabs */
+  .history-range-tabs {
+    background: var(--warm-gray);
+  }
+
+  .history-range-tab.active {
+    background: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  /* History stat cards */
+  .history-stat-card {
+    background: var(--card-bg);
+    border-color: var(--warm-gray);
+  }
+
+  /* Session date header */
+  .session-date-header {
+    border-bottom-color: var(--warm-gray);
+  }
+
+  /* Move dropdown */
+  .bm-move-dropdown {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Inputs */
+  .archive-search,
+  .bookmark-search,
+  .chat-input,
+  .chat-key-input,
+  .bookmark-ai-key-input,
+  .bm-move-new-input {
+    background: var(--card-bg);
+  }
+
+  /* Buttons that use --ink as background */
+  .chat-send,
+  .chat-key-save,
+  .bookmark-ai-key-save {
+    background: var(--accent-amber);
+    color: var(--paper);
+  }
+
+  /* Toast */
+  .toast {
+    background: var(--card-bg);
+    color: var(--ink);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+}
+
