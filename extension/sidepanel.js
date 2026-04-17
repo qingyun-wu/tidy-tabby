@@ -162,7 +162,7 @@ async function triggerPageSummary() {
 
   const thinking = appendMsg('thinking', `Reading: ${currentPage.title || currentPage.url}...`);
 
-  const prompt = `Briefly summarize what this page is about in 2-3 sentences, then suggest 2 things I might want to ask about it.`;
+  const prompt = `Briefly summarize this page in 2-3 sentences. Then suggest 3 short follow-up questions the user might ask. Return as JSON: {"summary": "...", "suggestions": ["...", "...", "..."]}. Only return the JSON, nothing else.`;
   spMessages.push({ role: 'user', content: prompt });
 
   try {
@@ -180,7 +180,7 @@ async function triggerPageSummary() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 512,
-        system: `You are Tidy Tabby AI in a browser side panel. The user is currently viewing a page. Summarize it based on the title and URL. Be concise.\n\n${buildContext(realTabs)}\n\nMatch the user's language.`,
+        system: `You are Tidy Tabby AI in a browser side panel. The user is currently viewing a page. Summarize it based on the title and URL. Be concise. Match the user's language.\n\n${buildContext(realTabs)}`,
         messages: spMessages,
       }),
     });
@@ -188,12 +188,42 @@ async function triggerPageSummary() {
     if (!resp.ok) throw new Error(`Error ${resp.status}`);
     const data = await resp.json();
     const reply = data.content?.[0]?.text || '';
-    spMessages.push({ role: 'assistant', content: reply });
+
+    // Try to parse as JSON for structured response
+    let summary = reply;
+    let suggestions = [];
+    try {
+      const parsed = JSON.parse(reply.replace(/^```json\n?|```$/g, '').trim());
+      if (parsed.summary) summary = parsed.summary;
+      if (Array.isArray(parsed.suggestions)) suggestions = parsed.suggestions;
+    } catch {
+      // Fallback: use raw text as summary
+    }
+
+    spMessages.push({ role: 'assistant', content: summary });
     thinking?.remove();
-    appendMsg('assistant', reply);
+    appendMsg('assistant', summary);
+
+    // Render clickable suggestion buttons
+    if (suggestions.length > 0) {
+      const container = document.createElement('div');
+      container.className = 'sp-suggestions';
+      for (const s of suggestions) {
+        const btn = document.createElement('button');
+        btn.className = 'sp-suggestion-btn';
+        btn.textContent = s;
+        btn.addEventListener('click', () => {
+          document.getElementById('spChatInput').value = s;
+          document.getElementById('spChatForm')?.requestSubmit();
+          container.remove();
+        });
+        container.appendChild(btn);
+      }
+      messagesEl.appendChild(container);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
   } catch {
     thinking?.remove();
-    // Silent fail — don't show error for auto-summary
   }
 }
 
