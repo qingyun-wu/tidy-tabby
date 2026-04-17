@@ -3359,6 +3359,134 @@ document.getElementById('chatInputForm')?.addEventListener('submit', async (e) =
 
 
 /* ----------------------------------------------------------------
+   TERMINAL — xterm.js + WebSocket to local shell
+   ---------------------------------------------------------------- */
+
+let term = null;
+let termSocket = null;
+let termInitialized = false;
+
+function initTerminal() {
+  if (termInitialized) return;
+  termInitialized = true;
+
+  const container = document.getElementById('terminalContainer');
+  if (!container || typeof Terminal === 'undefined') return;
+
+  term = new Terminal({
+    cursorBlink: true,
+    fontSize: 13,
+    fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+    theme: {
+      background: '#1a1613',
+      foreground: '#f8f5f0',
+      cursor: '#c8713a',
+      selectionBackground: 'rgba(200, 113, 58, 0.3)',
+      black: '#1a1613',
+      red: '#b35a5a',
+      green: '#5a7a62',
+      yellow: '#c8713a',
+      blue: '#5a6b7a',
+      magenta: '#9a6b8a',
+      cyan: '#5a8a8a',
+      white: '#e8e2da',
+      brightBlack: '#9a918a',
+      brightRed: '#d47a7a',
+      brightGreen: '#7a9a82',
+      brightYellow: '#e8a070',
+      brightBlue: '#7a8b9a',
+      brightMagenta: '#ba8baa',
+      brightCyan: '#7aaaaa',
+      brightWhite: '#f8f5f0',
+    },
+  });
+
+  if (typeof FitAddon !== 'undefined') {
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(container);
+    fitAddon.fit();
+    window.addEventListener('resize', () => fitAddon.fit());
+    // Re-fit when terminal tab becomes visible
+    const observer = new MutationObserver(() => {
+      const panel = document.getElementById('explorePanelTerminal');
+      if (panel && panel.style.display !== 'none') {
+        setTimeout(() => fitAddon.fit(), 50);
+      }
+    });
+    const panel = document.getElementById('explorePanelTerminal');
+    if (panel) observer.observe(panel, { attributes: true, attributeFilter: ['style'] });
+  } else {
+    term.open(container);
+  }
+
+  term.writeln('\x1b[1;33mTidy Tabby Terminal\x1b[0m');
+  term.writeln('Connect to a local WebSocket server to start.');
+  term.writeln('');
+
+  // Send keystrokes to WebSocket
+  term.onData(data => {
+    if (termSocket && termSocket.readyState === WebSocket.OPEN) {
+      termSocket.send(data);
+    }
+  });
+}
+
+function connectTerminal() {
+  const urlInput = document.getElementById('terminalUrl');
+  const statusEl = document.getElementById('terminalStatus');
+  const hintEl = document.getElementById('terminalHint');
+  const url = urlInput?.value.trim() || 'ws://localhost:8765';
+
+  if (termSocket) {
+    termSocket.close();
+    termSocket = null;
+  }
+
+  try {
+    termSocket = new WebSocket(url);
+  } catch {
+    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Failed to connect';
+    return;
+  }
+
+  if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot connecting"></span> Connecting...';
+
+  termSocket.onopen = () => {
+    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot connected"></span> Connected';
+    if (hintEl) hintEl.style.display = 'none';
+    if (term) {
+      term.clear();
+      term.focus();
+    }
+  };
+
+  termSocket.onmessage = (event) => {
+    if (term) term.write(event.data);
+  };
+
+  termSocket.onclose = () => {
+    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Disconnected';
+    if (term) term.writeln('\r\n\x1b[90m[Connection closed]\x1b[0m');
+  };
+
+  termSocket.onerror = () => {
+    if (statusEl) statusEl.innerHTML = '<span class="terminal-status-dot disconnected"></span> Connection failed';
+    if (hintEl) hintEl.style.display = '';
+  };
+}
+
+document.getElementById('terminalConnectBtn')?.addEventListener('click', () => {
+  if (!termInitialized) initTerminal();
+  connectTerminal();
+});
+
+document.getElementById('terminalUrl')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('terminalConnectBtn')?.click(); }
+});
+
+
+/* ----------------------------------------------------------------
    EXPLORE TABS — switch between sections
    ---------------------------------------------------------------- */
 
@@ -3368,6 +3496,7 @@ const explorePanels = {
   bookmarks: 'explorePanelBookmarks',
   insights: 'explorePanelInsights',
   chat: 'explorePanelChat',
+  terminal: 'explorePanelTerminal',
 };
 
 function switchExploreTab(tabName) {
@@ -3377,6 +3506,10 @@ function switchExploreTab(tabName) {
   for (const [key, id] of Object.entries(explorePanels)) {
     const panel = document.getElementById(id);
     if (panel) panel.style.display = key === tabName ? '' : 'none';
+  }
+  // Lazy-init terminal on first visit
+  if (tabName === 'terminal' && !termInitialized) {
+    initTerminal();
   }
 }
 
