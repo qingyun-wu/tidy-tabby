@@ -1727,6 +1727,175 @@ body.privacy-mode .privacy-screen {
 }
 
 /* ================================================================
+   BROWSING HISTORY SECTION
+   ================================================================ */
+
+.history-section {
+  margin-top: 48px;
+  animation: fadeUp 0.5s ease 0.35s both;
+}
+
+.history-section .section-header {
+  margin-bottom: 16px;
+}
+
+/* ---- Controls row ---- */
+.history-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.history-range-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--warm-gray);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.history-range-tab {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-range-tab:hover {
+  color: var(--ink);
+}
+
+.history-range-tab.active {
+  background: var(--card-bg);
+  color: var(--ink);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.history-ai-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid rgba(90, 122, 98, 0.3);
+  border-radius: 20px;
+  background: rgba(90, 122, 98, 0.04);
+  color: var(--accent-sage);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.history-ai-btn:hover {
+  background: rgba(90, 122, 98, 0.1);
+  border-color: var(--accent-sage);
+}
+
+.history-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.history-ai-response {
+  background: linear-gradient(135deg, rgba(90, 122, 98, 0.03), rgba(90, 122, 98, 0.07));
+  border: 1px solid rgba(90, 122, 98, 0.15);
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  animation: fadeUp 0.3s ease both;
+}
+
+/* ---- Stats cards ---- */
+.history-stat-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.history-stat-card {
+  flex: 1;
+  min-width: 100px;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.history-stat-num {
+  font-family: 'Newsreader', serif;
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.history-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ---- History cards ---- */
+.history-timeline {
+  columns: 280px;
+  column-gap: 12px;
+}
+
+.history-card {
+  cursor: default;
+}
+
+.history-bar-row {
+  margin: 6px 0 8px;
+  height: 4px;
+  background: rgba(200, 113, 58, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.history-bar {
+  height: 100%;
+  background: var(--accent-amber);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.history-visit-count {
+  font-size: 10px;
+  color: var(--accent-amber);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.history-empty {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 24px 0;
+  text-align: center;
+  column-span: all;
+}
+
+/* Hide in privacy mode */
+body.privacy-mode .history-section {
+  display: none !important;
+}
+
+/* ================================================================
    DAILY INSIGHTS SECTION
    ================================================================ */
 

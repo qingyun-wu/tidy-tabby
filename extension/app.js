@@ -2352,6 +2352,329 @@ document.addEventListener('mousedown', (e) => {
 
 
 /* ----------------------------------------------------------------
+   BROWSING HISTORY — fetch, analyze, and summarize
+   ---------------------------------------------------------------- */
+
+/**
+ * fetchHistory(range)
+ *
+ * Fetches browsing history from Chrome for the given range.
+ * range: 'today' | 'week' | 'month'
+ */
+async function fetchHistory(range = 'today') {
+  const now = Date.now();
+  const ranges = {
+    today: now - 24 * 60 * 60 * 1000,
+    week:  now - 7 * 24 * 60 * 60 * 1000,
+    month: now - 30 * 24 * 60 * 60 * 1000,
+  };
+  const startTime = ranges[range] || ranges.today;
+
+  try {
+    const items = await chrome.history.search({
+      text: '',
+      startTime,
+      maxResults: 5000,
+    });
+    // Filter out internal pages
+    return items.filter(item => {
+      const url = item.url || '';
+      return !url.startsWith('chrome://') &&
+             !url.startsWith('chrome-extension://') &&
+             !url.startsWith('about:') &&
+             !url.startsWith('edge://') &&
+             !url.startsWith('brave://');
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * analyzeHistory(items)
+ *
+ * Groups history by domain, computes stats, identifies top sites and patterns.
+ */
+function analyzeHistory(items) {
+  const byDomain = {};
+  const byHour = new Array(24).fill(0);
+  let totalVisits = 0;
+
+  for (const item of items) {
+    let hostname = '';
+    try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch { continue; }
+
+    if (!byDomain[hostname]) {
+      byDomain[hostname] = { domain: hostname, visits: 0, pages: [], uniqueUrls: new Set() };
+    }
+    const group = byDomain[hostname];
+    group.visits += item.visitCount || 1;
+    totalVisits += item.visitCount || 1;
+    group.uniqueUrls.add(item.url);
+    group.pages.push({
+      title: item.title || item.url,
+      url: item.url,
+      visitCount: item.visitCount || 1,
+      lastVisit: item.lastVisitTime,
+    });
+
+    if (item.lastVisitTime) {
+      const hour = new Date(item.lastVisitTime).getHours();
+      byHour[hour] += item.visitCount || 1;
+    }
+  }
+
+  // Sort domains by visit count
+  const topDomains = Object.values(byDomain)
+    .map(d => ({ ...d, uniqueCount: d.uniqueUrls.size }))
+    .sort((a, b) => b.visits - a.visits);
+
+  // Peak hour
+  const peakHour = byHour.indexOf(Math.max(...byHour));
+
+  return {
+    totalItems: items.length,
+    totalVisits,
+    uniqueDomains: topDomains.length,
+    topDomains,
+    byHour,
+    peakHour,
+  };
+}
+
+/**
+ * renderHistoryStats(analysis)
+ */
+function renderHistoryStats(analysis) {
+  const peakLabel = analysis.peakHour < 12
+    ? `${analysis.peakHour || 12}${analysis.peakHour === 0 ? ' AM' : ' AM'}`
+    : `${analysis.peakHour === 12 ? 12 : analysis.peakHour - 12} PM`;
+
+  return `
+    <div class="history-stat-cards">
+      <div class="history-stat-card">
+        <div class="history-stat-num">${analysis.totalItems}</div>
+        <div class="history-stat-label">pages visited</div>
+      </div>
+      <div class="history-stat-card">
+        <div class="history-stat-num">${analysis.uniqueDomains}</div>
+        <div class="history-stat-label">different sites</div>
+      </div>
+      <div class="history-stat-card">
+        <div class="history-stat-num">${analysis.totalVisits}</div>
+        <div class="history-stat-label">total visits</div>
+      </div>
+      <div class="history-stat-card">
+        <div class="history-stat-num">${peakLabel}</div>
+        <div class="history-stat-label">peak hour</div>
+      </div>
+    </div>`;
+}
+
+/**
+ * renderHistoryTimeline(analysis)
+ *
+ * Renders top domains as cards with their most visited pages.
+ */
+function renderHistoryTimeline(analysis) {
+  const top = analysis.topDomains.slice(0, 12);
+
+  return top.map(group => {
+    // Sort pages by visit count, deduplicate
+    const seen = new Set();
+    const uniquePages = [];
+    for (const p of group.pages.sort((a, b) => b.visitCount - a.visitCount)) {
+      if (!seen.has(p.url)) { seen.add(p.url); uniquePages.push(p); }
+    }
+
+    const visiblePages = uniquePages.slice(0, 5);
+    const extraCount = uniquePages.length - visiblePages.length;
+
+    const chips = visiblePages.map(p => {
+      const label = stripTitleNoise(cleanTitle(p.title, group.domain));
+      const safeUrl = (p.url || '').replace(/"/g, '&quot;');
+      let domain = '';
+      try { domain = new URL(p.url).hostname; } catch {}
+      const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+      const visitBadge = p.visitCount > 1 ? ` <span class="history-visit-count">${p.visitCount}x</span>` : '';
+
+      return `<div class="page-chip clickable" data-action="open-history-link" data-tab-url="${safeUrl}" title="${label}">
+        ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+        <span class="chip-text">${label}${visitBadge}</span>
+      </div>`;
+    }).join('');
+
+    const overflowHtml = extraCount > 0 ? `<div class="page-chip page-chip-overflow">${extraCount} more page${extraCount > 1 ? 's' : ''}</div>` : '';
+
+    // Activity bar (visual representation of visit intensity)
+    const maxVisits = analysis.topDomains[0]?.visits || 1;
+    const barWidth = Math.max(8, Math.round((group.visits / maxVisits) * 100));
+
+    return `
+      <div class="mission-card history-card has-neutral-bar">
+        <div class="status-bar"></div>
+        <div class="mission-content">
+          <div class="mission-top">
+            <span class="mission-name">${friendlyDomain(group.domain)}</span>
+            <span class="open-tabs-badge" style="color:var(--accent-amber);background:rgba(200,113,58,0.08);">
+              ${group.visits} visit${group.visits !== 1 ? 's' : ''} &middot; ${group.uniqueCount} page${group.uniqueCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div class="history-bar-row">
+            <div class="history-bar" style="width:${barWidth}%"></div>
+          </div>
+          <div class="mission-pages">${chips}${overflowHtml}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+let currentHistoryRange = 'today';
+let currentHistoryAnalysis = null;
+
+async function renderHistorySection(range = 'today') {
+  const section = document.getElementById('historySection');
+  const countEl = document.getElementById('historyCount');
+  const statsEl = document.getElementById('historyStats');
+  const timelineEl = document.getElementById('historyTimeline');
+  if (!section) return;
+
+  currentHistoryRange = range;
+  section.style.display = '';
+
+  const items = await fetchHistory(range);
+  if (items.length === 0) {
+    if (countEl) countEl.textContent = '';
+    if (statsEl) statsEl.innerHTML = '';
+    if (timelineEl) timelineEl.innerHTML = '<div class="history-empty">No browsing history for this period.</div>';
+    return;
+  }
+
+  const analysis = analyzeHistory(items);
+  currentHistoryAnalysis = analysis;
+
+  const rangeLabels = { today: 'today', week: 'this week', month: 'this month' };
+  if (countEl) countEl.textContent = `${analysis.totalItems} pages ${rangeLabels[range]}`;
+  if (statsEl) statsEl.innerHTML = renderHistoryStats(analysis);
+  if (timelineEl) timelineEl.innerHTML = renderHistoryTimeline(analysis);
+}
+
+// Range tab clicks
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest('.history-range-tab');
+  if (!tab) return;
+  const range = tab.dataset.range;
+  if (!range) return;
+
+  document.querySelectorAll('.history-range-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  renderHistorySection(range);
+});
+
+// Open history link
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-action="open-history-link"]');
+  if (!el) return;
+  const url = el.dataset.tabUrl;
+  if (!url) return;
+
+  const existing = openTabs.find(t => t.url === url);
+  if (existing) {
+    await focusTab(url);
+  } else {
+    await chrome.tabs.create({ url, active: false });
+    showToast('Opened page');
+  }
+});
+
+// AI summarize history
+document.getElementById('historyAiBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('historyAiBtn');
+  const responseEl = document.getElementById('historyAiResponse');
+  if (!btn || !responseEl || !currentHistoryAnalysis) return;
+
+  const apiKey = await getBookmarkApiKey();
+  if (!apiKey) {
+    responseEl.style.display = '';
+    responseEl.innerHTML = '<div class="bookmark-ai-error">Set up your API key in the Bookmarks section first.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  responseEl.style.display = '';
+  responseEl.innerHTML = '<div class="insight-loading"><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div><div class="insight-loading-dot"></div></div>';
+
+  // Build context from analysis
+  const a = currentHistoryAnalysis;
+  const rangeLabels = { today: 'today', week: 'this week', month: 'this month' };
+  let ctx = `Browsing history summary for ${rangeLabels[currentHistoryRange]}:\n\n`;
+  ctx += `Total: ${a.totalItems} pages, ${a.totalVisits} visits, ${a.uniqueDomains} sites\n\n`;
+  ctx += `Top sites:\n`;
+  for (const d of a.topDomains.slice(0, 20)) {
+    ctx += `\n[${friendlyDomain(d.domain)}] — ${d.visits} visits, ${d.uniqueCount} pages\n`;
+    const seen = new Set();
+    for (const p of d.pages.sort((x, y) => y.visitCount - x.visitCount).slice(0, 8)) {
+      if (!seen.has(p.url)) {
+        seen.add(p.url);
+        ctx += `  - ${stripTitleNoise(p.title)} (${p.visitCount}x) | ${p.url}\n`;
+      }
+    }
+  }
+
+  // Hour distribution
+  ctx += `\nActivity by hour:\n`;
+  for (let h = 0; h < 24; h++) {
+    if (a.byHour[h] > 0) ctx += `  ${h}:00 — ${a.byHour[h]} visits\n`;
+  }
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1536,
+        system: `You are an insightful personal analyst. Given a user's browsing history data, provide a concise, useful summary:
+
+## Patterns
+What topics dominated? Any focus sessions or context-switching? Were they productive, researching, or browsing casually?
+
+## Key activities
+The main things they worked on or explored, in bullet points. Be specific about the content, not just the sites.
+
+## Time insights
+When were they most active? Any notable patterns (late night coding, morning news, etc)?
+
+## Observations
+1-2 interesting or surprising observations (e.g. "You visited Stack Overflow 23 times — deep debugging session?" or "Heavy GitHub + Linear usage suggests an active sprint").
+
+Be concise, insightful, and slightly witty. Match the user's language.`,
+        messages: [{ role: 'user', content: ctx }],
+      }),
+    });
+
+    if (!resp.ok) throw new Error(resp.status === 401 ? 'Invalid API key' : `API error: ${resp.status}`);
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || 'No response.';
+    responseEl.innerHTML = `<div class="insight-content">${renderInsightHtml(text)}</div>`;
+  } catch (err) {
+    responseEl.innerHTML = `<div class="bookmark-ai-error">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+    </svg> Summarize with AI`;
+  }
+});
+
+
+/* ----------------------------------------------------------------
    DAILY INSIGHTS — AI-generated daily report
    ---------------------------------------------------------------- */
 
@@ -2597,5 +2920,6 @@ initPrivacyMode().then(async () => {
   await renderDashboard();
   await renderBookmarksSection();
   initBookmarkAi();
+  await renderHistorySection('today');
   initInsightsSection();
 });
