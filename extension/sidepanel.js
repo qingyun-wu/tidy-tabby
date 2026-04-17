@@ -149,6 +149,35 @@ function autoSummarizeIfChatOpen() {
   triggerPageSummary();
 }
 
+async function extractPageContent() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id || tab.url?.startsWith('chrome')) return '';
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        // Extract main text content, skip nav/header/footer/scripts
+        const selectors = ['article', 'main', '[role="main"]', '.post-content', '.entry-content', '.article-body'];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el && el.innerText.trim().length > 100) return el.innerText.trim();
+        }
+        // Fallback: body text minus scripts/styles/nav
+        const clone = document.body.cloneNode(true);
+        clone.querySelectorAll('script, style, nav, header, footer, aside, [role="navigation"]').forEach(el => el.remove());
+        return clone.innerText.trim();
+      },
+    });
+
+    const text = results?.[0]?.result || '';
+    // Truncate to ~4000 chars to stay within token limits
+    return text.length > 4000 ? text.slice(0, 4000) + '\n...[truncated]' : text;
+  } catch {
+    return '';
+  }
+}
+
 async function triggerPageSummary() {
   const apiKey = await getApiKey();
   if (!apiKey) return;
@@ -162,7 +191,13 @@ async function triggerPageSummary() {
 
   const thinking = appendMsg('thinking', `Reading: ${currentPage.title || currentPage.url}...`);
 
-  const prompt = `Briefly summarize this page in 2-3 sentences. Then suggest 3 short follow-up questions the user might ask. Return as JSON: {"summary": "...", "suggestions": ["...", "...", "..."]}. Only return the JSON, nothing else.`;
+  // Extract actual page content
+  const pageContent = await extractPageContent();
+
+  const contentSection = pageContent
+    ? `\n\nHere is the page content:\n\n${pageContent}`
+    : '';
+  const prompt = `Briefly summarize this page in 2-3 sentences. Then suggest 3 short follow-up questions the user might ask. Return as JSON: {"summary": "...", "suggestions": ["...", "...", "..."]}. Only return the JSON, nothing else.${contentSection}`;
   spMessages.push({ role: 'user', content: prompt });
 
   try {
@@ -180,7 +215,7 @@ async function triggerPageSummary() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 512,
-        system: `You are Tidy Tabby AI in a browser side panel. The user is currently viewing a page. Summarize it based on the title and URL. Be concise. Match the user's language.\n\n${buildContext(realTabs)}`,
+        system: `You are Tidy Tabby AI in a browser side panel. The user is currently viewing a page. You have access to the page's actual content. Provide an accurate, concise summary. Match the user's language.\n\n${buildContext(realTabs)}`,
         messages: spMessages,
       }),
     });
