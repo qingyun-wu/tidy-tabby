@@ -1858,11 +1858,14 @@ function generateBookmarkSuggestions(bookmarks) {
     const normalized = bm.url.replace(/\/$/, '').replace(/^https?:\/\/(www\.)?/, '');
     urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
   }
-  const dupeCount = Object.values(urlCounts).filter(c => c > 1).length;
+  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
+  const dupeCount = dupeUrls.length;
   if (dupeCount > 0) {
     suggestions.push({
       type: 'warning',
       text: `${dupeCount} duplicate bookmark${dupeCount > 1 ? 's' : ''} found — same URL saved in multiple folders.`,
+      action: 'clean-duplicate-bookmarks',
+      actionLabel: 'Clean up',
     });
   }
 
@@ -2130,11 +2133,103 @@ async function renderBookmarksSection() {
     return;
   }
 
+  // Quick Access — bookmarks bar (first child of root, usually id "1")
+  const quickAccessEl = document.getElementById('quickAccess');
+  const quickAccessItems = document.getElementById('quickAccessItems');
+  if (quickAccessEl && quickAccessItems) {
+    // The bookmarks bar is typically tree[0].children[0] (id "1")
+    const barNode = tree[0]?.children?.find(n => n.id === '1') || tree[0]?.children?.[0];
+    const barChildren = barNode?.children || [];
+    const MAX_QUICK_ACCESS = 10;
+
+    if (barChildren.length > 0) {
+      let html = '';
+      for (const node of barChildren.slice(0, MAX_QUICK_ACCESS)) {
+        if (node.url) {
+          // Direct bookmark link
+          let domain = '';
+          try { domain = new URL(node.url).hostname; } catch {}
+          const favicon = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+          const safeUrl = (node.url || '').replace(/"/g, '&quot;');
+          html += `<a href="${safeUrl}" class="quick-access-item" target="_top" title="${(node.title || '').replace(/"/g, '&quot;')}">
+            ${favicon ? `<img class="quick-access-icon" src="${favicon}" alt="" onerror="this.style.display='none'">` : ''}
+            <span class="quick-access-name">${node.title || domain}</span>
+          </a>`;
+        } else if (node.children && node.title) {
+          // Folder — clickable to expand
+          const links = node.children.filter(n => n.url);
+          if (links.length === 0) continue;
+          const folderId = 'qa-folder-' + node.id;
+          const linksHtml = links.map(bm => {
+            let d = '';
+            try { d = new URL(bm.url).hostname; } catch {}
+            const fav = d ? `https://www.google.com/s2/favicons?domain=${d}&sz=16` : '';
+            const safeUrl = (bm.url || '').replace(/"/g, '&quot;');
+            return `<a href="${safeUrl}" class="quick-access-item" target="_top" title="${(bm.title || '').replace(/"/g, '&quot;')}">
+              ${fav ? `<img class="quick-access-icon" src="${fav}" alt="" onerror="this.style.display='none'">` : ''}
+              <span class="quick-access-name">${bm.title || d}</span>
+            </a>`;
+          }).join('');
+          html += `<button class="quick-access-folder" data-qa-toggle="${folderId}">${node.title} <span class="quick-access-folder-count">${links.length}</span></button>`;
+          html += `<div class="quick-access-expand" id="${folderId}" style="display:none">${linksHtml}</div>`;
+        }
+      }
+      quickAccessItems.innerHTML = html;
+      quickAccessEl.style.display = '';
+    } else {
+      quickAccessEl.style.display = 'none';
+    }
+  }
+
+  // Quick Access folder toggle
+  document.querySelectorAll('[data-qa-toggle]').forEach(btn => {
+    btn.onclick = () => {
+      const target = document.getElementById(btn.dataset.qaToggle);
+      if (target) {
+        const open = target.style.display !== 'none';
+        target.style.display = open ? 'none' : 'flex';
+        btn.classList.toggle('open', !open);
+      }
+    };
+  });
+
   // Count
   const countEl = document.getElementById('bookmarksCount');
   const groups = groupBookmarksByFolder(allBookmarks);
   if (countEl) {
     countEl.textContent = `${allBookmarks.length} bookmarks · ${groups.length} folders`;
+  }
+
+  // Duplicate bookmarks banner
+  const urlCounts = {};
+  for (const bm of allBookmarks) {
+    const key = bm.url.replace(/\/$/, '').replace(/^https?:\/\/(www\.)?/, '');
+    urlCounts[key] = (urlCounts[key] || 0) + 1;
+  }
+  const dupeTotal = Object.values(urlCounts).filter(c => c > 1).reduce((s, c) => s + c - 1, 0);
+  const dupeBanner = document.getElementById('bmDupeBanner');
+  const dupeCountEl = document.getElementById('bmDupeCount');
+  if (dupeBanner) {
+    if (dupeTotal > 0) {
+      if (dupeCountEl) dupeCountEl.textContent = dupeTotal;
+      dupeBanner.style.display = '';
+    } else {
+      dupeBanner.style.display = 'none';
+    }
+  }
+
+  // Old bookmarks banner
+  const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const agedCount = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo).length;
+  const agedBanner = document.getElementById('bmAgedBanner');
+  const agedCountEl = document.getElementById('bmAgedCount');
+  if (agedBanner) {
+    if (agedCount > 10) {
+      if (agedCountEl) agedCountEl.textContent = agedCount;
+      agedBanner.style.display = '';
+    } else {
+      agedBanner.style.display = 'none';
+    }
   }
 
   // Suggestions
@@ -2144,7 +2239,8 @@ async function renderBookmarksSection() {
   if (suggestions.length > 0 && suggestionsEl && suggestionsBody) {
     suggestionsBody.innerHTML = suggestions.map(s => {
       const icon = s.type === 'warning' ? '⚠' : s.type === 'info' ? '↗' : s.type === 'cleanup' ? '🧹' : '📊';
-      return `<div class="bookmark-suggestion-item">${icon} ${s.text}</div>`;
+      const actionBtn = s.action ? ` <button class="suggestion-action-btn" data-action="${s.action}">${s.actionLabel}</button>` : '';
+      return `<div class="bookmark-suggestion-item">${icon} ${s.text}${actionBtn}</div>`;
     }).join('');
     suggestionsEl.style.display = '';
   }
@@ -2216,6 +2312,90 @@ document.addEventListener('click', async (e) => {
       await chrome.tabs.create({ url, active: false });
       showToast('Opened bookmark');
     }
+    return;
+  }
+
+  // ---- Archive aged bookmarks ----
+  if (action === 'archive-aged-bookmarks') {
+    e.stopPropagation();
+    const section = document.getElementById('bookmarksSection');
+    const allBookmarks = section?._allBookmarks || [];
+
+    const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const aged = allBookmarks.filter(bm => bm.dateAdded && bm.dateAdded < oneYearAgo);
+    if (aged.length === 0) return;
+
+    actionEl.disabled = true;
+    actionEl.textContent = 'Archiving...';
+
+    try {
+      // Create or find the Archive parent folder under "Other Bookmarks" (id "2")
+      const existing = await chrome.bookmarks.search({ title: 'Archive' });
+      let archiveRoot = existing.find(n => !n.url && n.parentId === '2');
+      if (!archiveRoot) {
+        archiveRoot = await chrome.bookmarks.create({ parentId: '2', title: 'Archive' });
+      }
+
+      // Group aged bookmarks by year, then move into year subfolders
+      const byYear = {};
+      for (const bm of aged) {
+        const year = bm.dateAdded ? new Date(bm.dateAdded).getFullYear().toString() : 'Unknown';
+        if (!byYear[year]) byYear[year] = [];
+        byYear[year].push(bm);
+      }
+
+      let moved = 0;
+      for (const [year, bookmarks] of Object.entries(byYear).sort()) {
+        // Find or create year subfolder
+        const yearFolders = await chrome.bookmarks.getChildren(archiveRoot.id);
+        let yearFolder = yearFolders.find(n => n.title === year && !n.url);
+        if (!yearFolder) {
+          yearFolder = await chrome.bookmarks.create({ parentId: archiveRoot.id, title: year });
+        }
+        for (const bm of bookmarks) {
+          try {
+            await chrome.bookmarks.move(bm.id, { parentId: yearFolder.id });
+            moved++;
+          } catch {}
+        }
+      }
+
+      showToast(`Moved ${moved} old bookmarks to Archive folder`);
+      await renderBookmarksSection();
+    } catch (err) {
+      showToast('Failed to archive bookmarks');
+    }
+    return;
+  }
+
+  // ---- Clean duplicate bookmarks ----
+  if (action === 'clean-duplicate-bookmarks') {
+    e.stopPropagation();
+    const section = document.getElementById('bookmarksSection');
+    const allBookmarks = section?._allBookmarks || [];
+
+    // Group by normalized URL
+    const urlMap = {};
+    for (const bm of allBookmarks) {
+      const key = bm.url.replace(/\/$/, '').replace(/^https?:\/\/(www\.)?/, '');
+      if (!urlMap[key]) urlMap[key] = [];
+      urlMap[key].push(bm);
+    }
+
+    // Remove duplicates — keep the first one, delete the rest
+    let removed = 0;
+    for (const [, copies] of Object.entries(urlMap)) {
+      if (copies.length <= 1) continue;
+      for (const bm of copies.slice(1)) {
+        try {
+          await chrome.bookmarks.remove(bm.id);
+          removed++;
+        } catch {}
+      }
+    }
+
+    showToast(`Removed ${removed} duplicate bookmark${removed !== 1 ? 's' : ''}`);
+    await renderBookmarksSection();
     return;
   }
 
