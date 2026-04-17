@@ -3436,6 +3436,32 @@ function updateExploreCounts() {
 
 
 /* ----------------------------------------------------------------
+   AUTO-REFRESH — re-render when tabs change
+   ---------------------------------------------------------------- */
+
+let refreshTimer = null;
+
+function scheduleRefresh() {
+  // Debounce: wait 300ms after the last tab event before re-rendering.
+  // Prevents rapid-fire updates when closing/opening multiple tabs at once.
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    refreshTimer = null;
+    await renderDashboard();
+    updateExploreCounts();
+  }, 300);
+}
+
+chrome.tabs.onCreated.addListener(scheduleRefresh);
+chrome.tabs.onRemoved.addListener(scheduleRefresh);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  // Only refresh on meaningful changes (URL or title), not every status update
+  if (changeInfo.url || changeInfo.title) scheduleRefresh();
+});
+chrome.tabs.onActivated.addListener(scheduleRefresh);
+
+
+/* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
 // Init privacy mode first to avoid content flash, then render
