@@ -5,6 +5,9 @@
   "description": "Tidy Tabby keeps your tabs tidy. New tab page that groups your open tabs by domain and lets you close them with style.",
   "permissions": ["tabs", "activeTab", "storage", "bookmarks", "history"],
   "host_permissions": ["https://api.anthropic.com/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws://localhost:* wss://localhost:* https://api.anthropic.com/*"
+  },
   "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
   "action": {
