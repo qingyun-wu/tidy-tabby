@@ -1230,7 +1230,11 @@ body.privacy-mode .privacy-screen {
   align-items: center;
   gap: 0;
   user-select: none;
-  position: relative;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--paper);
+  justify-content: center;
 }
 
 .privacy-time {
