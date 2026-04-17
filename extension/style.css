@@ -1488,6 +1488,125 @@ body.privacy-mode .privacy-screen {
   column-span: all;
 }
 
+/* ---- Bookmark AI ---- */
+.bookmark-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.bookmark-ai-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid rgba(90, 122, 98, 0.3);
+  border-radius: 20px;
+  background: rgba(90, 122, 98, 0.04);
+  color: var(--accent-sage);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bookmark-ai-btn:hover {
+  background: rgba(90, 122, 98, 0.1);
+  border-color: var(--accent-sage);
+}
+
+.bookmark-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bookmark-ai-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bookmark-ai-key-input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 20px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  width: 260px;
+}
+
+.bookmark-ai-key-input:focus {
+  border-color: var(--accent-amber);
+}
+
+.bookmark-ai-key-save {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.bookmark-ai-key-save:hover { opacity: 0.85; }
+
+.bookmark-ai-response {
+  background: linear-gradient(135deg, rgba(90, 122, 98, 0.03), rgba(90, 122, 98, 0.07));
+  border: 1px solid rgba(90, 122, 98, 0.15);
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  animation: fadeUp 0.3s ease both;
+}
+
+.bookmark-ai-loading {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.bookmark-ai-result {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.bookmark-ai-heading {
+  font-weight: 600;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.bookmark-ai-heading:first-child {
+  margin-top: 0;
+}
+
+.bookmark-ai-bullet {
+  padding-left: 14px;
+  position: relative;
+}
+
+.bookmark-ai-bullet::before {
+  content: '\2022';
+  position: absolute;
+  left: 2px;
+  color: var(--accent-sage);
+}
+
+.bookmark-ai-error {
+  font-size: 13px;
+  color: var(--status-abandoned);
+}
+
 /* ---- Bookmark chip action: move button ---- */
 .chip-move:hover {
   color: var(--accent-slate);

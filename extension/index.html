@@ -157,7 +157,7 @@
       <div class="section-count" id="bookmarksCount"></div>
     </div>
 
-    <!-- AI-style suggestions banner -->
+    <!-- Quick insights banner -->
     <div class="bookmark-suggestions" id="bookmarkSuggestions" style="display:none">
       <div class="bookmark-suggestions-header">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
@@ -167,6 +167,21 @@
       </div>
       <div class="bookmark-suggestions-body" id="bookmarkSuggestionsBody"></div>
     </div>
+
+    <!-- AI organize -->
+    <div class="bookmark-ai-row" id="bookmarkAiRow">
+      <div class="bookmark-ai-key-row" id="bookmarkAiKeyRow" style="display:none">
+        <input type="password" class="bookmark-ai-key-input" id="bookmarkAiKeyInput" placeholder="Anthropic API key (sk-ant-...)">
+        <button class="bookmark-ai-key-save" id="bookmarkAiKeySave">Save</button>
+      </div>
+      <button class="bookmark-ai-btn" id="bookmarkAiBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+        </svg>
+        Organize with AI
+      </button>
+    </div>
+    <div class="bookmark-ai-response" id="bookmarkAiResponse" style="display:none"></div>
 
     <!-- Search bar -->
     <div class="bookmark-search-row">

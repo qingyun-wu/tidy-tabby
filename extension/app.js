@@ -1904,6 +1904,144 @@ function renderBookmarkOverflow(hiddenBookmarks) {
     </div>`;
 }
 
+/* ---- Bookmark AI — API key + Claude call ---- */
+
+async function getBookmarkApiKey() {
+  try {
+    const result = await chrome.storage.local.get('anthropicApiKey');
+    return result.anthropicApiKey || '';
+  } catch { return ''; }
+}
+
+async function saveBookmarkApiKey(key) {
+  try { await chrome.storage.local.set({ anthropicApiKey: key }); } catch {}
+}
+
+function buildBookmarkSummary(bookmarks, folders) {
+  let summary = `The user has ${bookmarks.length} bookmarks across ${folders.length} folders:\n\n`;
+
+  const groups = groupBookmarksByFolder(bookmarks);
+  for (const g of groups) {
+    summary += `[${g.folderPath}] (${g.bookmarks.length} bookmarks)\n`;
+    for (const bm of g.bookmarks.slice(0, 10)) {
+      summary += `  - ${bm.title} | ${bm.url}\n`;
+    }
+    if (g.bookmarks.length > 10) {
+      summary += `  ... and ${g.bookmarks.length - 10} more\n`;
+    }
+    summary += '\n';
+  }
+  return summary;
+}
+
+async function callClaudeForBookmarks(bookmarks, folders) {
+  const apiKey = await getBookmarkApiKey();
+  if (!apiKey) throw new Error('No API key');
+
+  const systemPrompt = `You are a bookmark organizer assistant. The user will show you their browser bookmarks. Analyze them and provide:
+
+1. **Folder suggestions**: Recommend how to reorganize messy or uncategorized bookmarks into logical folders. Be specific — name the bookmark and the suggested folder.
+2. **Duplicates**: Point out any duplicate or near-duplicate bookmarks.
+3. **Cleanup candidates**: Identify bookmarks that look outdated, broken (common patterns), or low-value.
+4. **Themes**: Briefly note what topics/interests the bookmarks reveal.
+
+Be concise and actionable. Use short bullet points. Don't repeat the full URLs — use the bookmark titles. Respond in the same language as the bookmark titles (if mostly Chinese, respond in Chinese; if mostly English, respond in English).`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: buildBookmarkSummary(bookmarks, folders) }],
+    }),
+  });
+
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error('Invalid API key');
+    throw new Error(`API error: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  return data.content?.[0]?.text || 'No response.';
+}
+
+// ---- AI button wiring ----
+
+async function initBookmarkAi() {
+  const apiKey = await getBookmarkApiKey();
+  const keyRow = document.getElementById('bookmarkAiKeyRow');
+  const btn = document.getElementById('bookmarkAiBtn');
+
+  if (!apiKey) {
+    // Show key input, hide button
+    if (keyRow) keyRow.style.display = '';
+    if (btn) btn.style.display = 'none';
+  } else {
+    if (keyRow) keyRow.style.display = 'none';
+    if (btn) btn.style.display = '';
+  }
+}
+
+document.getElementById('bookmarkAiKeySave')?.addEventListener('click', async () => {
+  const input = document.getElementById('bookmarkAiKeyInput');
+  const key = input?.value.trim();
+  if (!key) return;
+  await saveBookmarkApiKey(key);
+  await initBookmarkAi();
+});
+
+document.getElementById('bookmarkAiKeyInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('bookmarkAiKeySave')?.click(); }
+});
+
+document.getElementById('bookmarkAiBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('bookmarkAiBtn');
+  const responseEl = document.getElementById('bookmarkAiResponse');
+  const section = document.getElementById('bookmarksSection');
+  if (!btn || !responseEl || !section) return;
+
+  const bookmarks = section._allBookmarks || [];
+  const folders = section._folders || [];
+  if (bookmarks.length === 0) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  responseEl.style.display = '';
+  responseEl.innerHTML = '<div class="bookmark-ai-loading">Thinking...</div>';
+
+  try {
+    const reply = await callClaudeForBookmarks(bookmarks, folders);
+    // Simple markdown-ish rendering: bold, bullets, headers
+    const html = reply
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^### (.+)$/gm, '<div class="bookmark-ai-heading">$1</div>')
+      .replace(/^## (.+)$/gm, '<div class="bookmark-ai-heading">$1</div>')
+      .replace(/^[-*] (.+)$/gm, '<div class="bookmark-ai-bullet">$1</div>')
+      .replace(/\n{2,}/g, '<br>')
+      .replace(/\n/g, '<br>');
+    responseEl.innerHTML = `<div class="bookmark-ai-result">${html}</div>`;
+  } catch (err) {
+    responseEl.innerHTML = `<div class="bookmark-ai-error">${err.message === 'Invalid API key' ? 'Invalid API key. Click to re-enter.' : 'Error: ' + err.message}</div>`;
+    if (err.message === 'Invalid API key') {
+      await saveBookmarkApiKey('');
+      await initBookmarkAi();
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+    </svg> Organize with AI`;
+  }
+});
+
 /**
  * renderBookmarksSection()
  *
@@ -2220,4 +2358,5 @@ document.addEventListener('mousedown', (e) => {
 initPrivacyMode().then(() => {
   renderDashboard();
   renderBookmarksSection();
+  initBookmarkAi();
 });
