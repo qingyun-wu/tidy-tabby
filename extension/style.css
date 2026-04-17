@@ -1194,7 +1194,6 @@ body.privacy-mode .privacy-toggle {
 
 /* ---- Privacy mode: hide dashboard content ---- */
 body.privacy-mode .tab-cleanup-banner,
-body.privacy-mode .dashboard-columns,
 body.privacy-mode footer {
   display: none !important;
 }
@@ -1389,8 +1388,6 @@ body.privacy-mode .privacy-screen {
    ================================================================ */
 
 .bookmarks-section {
-  margin-top: 48px;
-  animation: fadeUp 0.5s ease 0.3s both;
 }
 
 .bookmarks-section .section-header {
@@ -1731,8 +1728,8 @@ body.privacy-mode .privacy-screen {
    ================================================================ */
 
 .explore-section {
-  margin-top: 40px;
-  animation: fadeUp 0.5s ease 0.3s both;
+  margin-top: 32px;
+  animation: fadeUp 0.5s ease 0.2s both;
 }
 
 .explore-tabs {
@@ -2249,12 +2246,6 @@ body.privacy-mode .explore-section {
    ================================================================ */
 
 .insights-section {
-  margin-top: 48px;
-  animation: fadeUp 0.5s ease 0.4s both;
-}
-
-.insights-section .section-header {
-  margin-bottom: 16px;
 }
 
 .insights-body {
@@ -2416,8 +2407,4 @@ body.privacy-mode .explore-section {
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* Hide insights in privacy mode */
-body.privacy-mode .insights-section {
-  display: none !important;
-}
 

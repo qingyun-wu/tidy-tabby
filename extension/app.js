@@ -3133,10 +3133,6 @@ async function initInsightsSection() {
 
   const apiKey = await getBookmarkApiKey();
 
-  // Always show the section
-  section.style.display = '';
-  if (dateEl) dateEl.textContent = getTodayKey();
-
   // Check for cached report
   const cached = await getCachedInsight();
   if (cached && cached.date === getTodayKey() && body) {
@@ -3207,16 +3203,21 @@ document.getElementById('insightsRefreshBtn')?.addEventListener('click', async (
    EXPLORE TABS — switch between Recent Activity and Bookmarks
    ---------------------------------------------------------------- */
 
+const explorePanels = {
+  tabs: 'explorePanelTabs',
+  activity: 'explorePanelActivity',
+  bookmarks: 'explorePanelBookmarks',
+  insights: 'explorePanelInsights',
+};
+
 function switchExploreTab(tabName) {
-  // Toggle tab buttons
   document.querySelectorAll('.explore-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.explore === tabName);
   });
-  // Toggle panels
-  const activityPanel = document.getElementById('explorePanelActivity');
-  const bookmarksPanel = document.getElementById('explorePanelBookmarks');
-  if (activityPanel) activityPanel.style.display = tabName === 'activity' ? '' : 'none';
-  if (bookmarksPanel) bookmarksPanel.style.display = tabName === 'bookmarks' ? '' : 'none';
+  for (const [key, id] of Object.entries(explorePanels)) {
+    const panel = document.getElementById(id);
+    if (panel) panel.style.display = key === tabName ? '' : 'none';
+  }
 }
 
 document.addEventListener('click', (e) => {
@@ -3227,10 +3228,15 @@ document.addEventListener('click', (e) => {
 });
 
 function updateExploreCounts() {
+  const tabsCount = document.getElementById('exploreTabsCount');
   const activityCount = document.getElementById('exploreActivityCount');
   const bookmarkCount = document.getElementById('exploreBookmarkCount');
   const section = document.getElementById('bookmarksSection');
 
+  if (tabsCount) {
+    const realCount = getRealTabs().length;
+    tabsCount.textContent = realCount;
+  }
   if (activityCount && currentHistoryAnalysis) {
     activityCount.textContent = currentHistoryAnalysis.totalItems;
   }
