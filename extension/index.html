@@ -322,7 +322,12 @@
         </div>
         <div class="terminal-container" id="terminalContainer"></div>
         <div class="terminal-hint" id="terminalHint">
-          First time? Run <code>./install-terminal.sh</code> to set up. Launches Claude Code if installed, otherwise opens a shell.
+          <p>First time? Paste this into any terminal to set up:</p>
+          <div class="terminal-install-cmd">
+            <code id="terminalInstallCmd">cd ~/path-to-repo && ./install-terminal.sh</code>
+            <button class="terminal-copy-btn" id="terminalCopyBtn" title="Copy to clipboard">Copy</button>
+          </div>
+          <p class="terminal-hint-sub">After that, reload the extension and click Connect. Launches Claude Code if installed.</p>
         </div>
       </div>
     </div>

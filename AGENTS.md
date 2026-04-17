@@ -88,9 +88,34 @@ Once the extension is loaded:
 
 ---
 
+## Step 4 -- Set up Claude Code in the browser (automatic)
+
+After the extension is loaded, set up native messaging so the Claude Code tab works:
+
+```bash
+# Get the extension ID from Chrome
+EXTENSION_ID=$(ls ~/Library/Application\ Support/Google/Chrome/Default/Extensions/ 2>/dev/null | grep -v Temp | tail -1)
+# Or on Linux: ls ~/.config/google-chrome/Default/Extensions/
+
+# Run the install script with the extension ID
+./install-terminal.sh "$EXTENSION_ID"
+```
+
+If the auto-detect doesn't work, find the ID manually:
+1. Open `chrome://extensions`
+2. Find "Tidy Tabby" and copy its ID
+3. Run: `./install-terminal.sh <paste-id-here>`
+
+Then reload the extension in `chrome://extensions`.
+
+> The **Claude Code** tab is now ready. Click it and hit Connect — if Claude Code is installed, it launches directly. Otherwise you get a regular shell.
+
+---
+
 ## Key Facts
 
 - Tidy Tabby is a pure Chrome extension. No server, no Node.js, no npm.
 - Saved tabs are stored in `chrome.storage.local` (persists across sessions).
 - 100% local. No data is sent to any external service.
+- The Claude Code tab uses Chrome Native Messaging — requires a one-time `install-terminal.sh` setup.
 - To update: `cd tab-out && git pull`, then reload the extension in `chrome://extensions`.

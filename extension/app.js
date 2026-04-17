@@ -3473,6 +3473,29 @@ document.getElementById('terminalConnectBtn')?.addEventListener('click', () => {
   connectTerminal();
 });
 
+// Auto-fill the install command with the actual extension ID and repo path
+(function fillInstallCmd() {
+  const cmdEl = document.getElementById('terminalInstallCmd');
+  if (!cmdEl) return;
+  const extId = chrome.runtime.id;
+  const extUrl = chrome.runtime.getURL('');
+  // Extract repo path from extension URL (works for unpacked extensions)
+  // chrome-extension://ID/ → the extension is loaded from extension/ subfolder
+  // We need the parent (repo root) for install-terminal.sh
+  const cmd = `cd "${extUrl.replace('chrome-extension://' + extId + '/', '').replace(/extension\/$/, '') || '~/tab-out'}" && ./install-terminal.sh ${extId}`;
+  // Simpler: just use the extension ID
+  cmdEl.textContent = `./install-terminal.sh ${extId}`;
+})();
+
+document.getElementById('terminalCopyBtn')?.addEventListener('click', () => {
+  const cmdEl = document.getElementById('terminalInstallCmd');
+  if (!cmdEl) return;
+  navigator.clipboard.writeText(cmdEl.textContent).then(() => {
+    const btn = document.getElementById('terminalCopyBtn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+  });
+});
+
 
 /* ----------------------------------------------------------------
    EXPLORE TABS — switch between sections
